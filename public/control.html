@@ -44,7 +44,10 @@
     padding: 12px 14px; background: transparent; border: 1px solid transparent; color: var(--text); cursor: pointer; font: inherit;
   }
   .scene-btn:hover { background: rgba(200,167,106,.06); border-color: rgba(200,167,106,.18); }
+  .scene-btn.editing { border-color: rgba(200,167,106,.45); }
+  .scene-btn.editing .name { color: var(--text-hi); font-weight: 600; }
   .scene-btn.active { background: rgba(200,167,106,.10); border-color: rgba(200,167,106,.45); }
+  .scene-btn.active::after { content: 'ĐANG PHÁT'; grid-column: 1 / -1; font-size: 10px; letter-spacing: .20em; color: var(--live); margin-top: 2px; }
   .scene-btn .num { font-family: var(--font-display); font-size: 15px; letter-spacing: .22em; color: var(--muted-dim); }
   .scene-btn .name { font-size: 14px; letter-spacing: .06em; }
   .scene-btn .kind { font-size: 10px; letter-spacing: .20em; text-transform: uppercase; color: var(--muted-dim); }
@@ -218,6 +221,7 @@
     <div class="grid">
       <label>Màu nhấn<div class="row"><input type="color" data-bind="theme.accent"><span class="hint" id="accentHex"></span></div></label>
       <label>Hạt nhiễu <span id="grainVal" style="text-transform:none;letter-spacing:0"></span><input type="range" min="0" max="0.16" step="0.005" data-bind="theme.grain"></label>
+      <label>Chơi cùng<input type="text" data-bind="partner" placeholder="with @ten"></label>
       <label class="toggle"><input type="checkbox" data-bind="live"> Hiện LIVE và đồng hồ khi đang chơi</label>
     </div>
   </section>
@@ -268,6 +272,7 @@
 
   function renderButtons() {
     const onAir = state?.scene === editing;
+    document.querySelectorAll('.scene-btn').forEach((b) => b.classList.toggle('editing', b.dataset.scene === editing));
     $('#showBtn').textContent = onAir && TIMED.has(editing) ? 'Hiện lại' : onAir ? 'Đang bật' : 'Bật cảnh này';
     document.querySelectorAll('.chap').forEach((b) => b.classList.toggle('active', b.dataset.title === state?.chapter?.title));
   }

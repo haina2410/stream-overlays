@@ -13,7 +13,7 @@ const el = (tag, cls, html, attrs = {}) => {
 };
 
 const tally = (state) => (state.live
-  ? el('div', 'abs tally', `<span class="dot"></span><span class="label">Live</span><span class="sep"></span><span class="clock" data-time>${timeNow()}</span>`)
+  ? el('div', 'abs tally', `<span class="dot"></span><span class="label">Live</span><span class="sep"></span><span class="clock" data-time>${timeNow()}</span><span class="sep"></span><span class="partner" data-bind="partner">${esc(state.partner)}</span>`)
   : null);
 
 function timeNow() {
@@ -60,6 +60,7 @@ const builders = {
       el('div', 'soon-kicker', esc(d.kicker), { 'data-text': '', 'data-bind': 'soon.kicker' }),
       el('div', 'soon-word', esc(d.title), { 'data-text': '', 'data-bind': 'soon.title' }),
       el('div', 'soon-line', esc(d.line), { 'data-text': '', 'data-bind': 'soon.line' }),
+      el('div', 'soon-partner', esc(state.partner), { 'data-text': '', 'data-bind': 'partner' }),
     );
     const count = el('div', 'abs soon-count', `<span class="lbl" data-bind="soon.countLabel">${esc(d.countLabel)}</span><span class="clock" data-clock>--:--</span>`, { 'data-text': '' });
     return [

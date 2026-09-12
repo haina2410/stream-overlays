@@ -67,6 +67,9 @@ body.preview {
 .tally .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); box-shadow: 0 0 12px rgba(192, 90, 74, .7); }
 .tally .label { font-size: 12px; font-weight: 600; letter-spacing: .30em; text-transform: uppercase; color: rgba(213, 213, 207, .62); }
 .tally .sep { width: 1px; height: 12px; background: rgba(213, 213, 207, .22); margin: 0 2px; }
+.tally .partner { font-size: 12px; font-weight: 600; letter-spacing: .12em; color: var(--accent); }
+.tally .partner:empty { display: none; }
+.tally .sep:has(+ .partner:empty) { display: none; }
 .tally .clock { font-family: var(--font-display); font-size: 15px; font-weight: 300; letter-spacing: .18em; color: rgba(213, 213, 207, .62); font-variant-numeric: tabular-nums; }
 
 /* Shared type */
@@ -119,6 +122,8 @@ body.preview {
 .soon-kicker { font-size: 14px; font-weight: 600; letter-spacing: .48em; text-transform: uppercase; color: #6E7A7C; animation: textIn 900ms var(--ease-cine) 200ms both; }
 .soon-word { margin-top: 46px; font-family: var(--font-display); font-size: 146px; font-weight: 200; letter-spacing: .40em; text-transform: uppercase; line-height: 1; color: var(--text-hi); text-indent: .40em; animation: riseIn 1100ms var(--ease-cine) 380ms both; }
 .soon-line { margin-top: 54px; font-size: 23px; font-weight: 300; font-style: italic; line-height: 1.5; color: #98A2A3; animation: textIn 900ms var(--ease-cine) 640ms both; }
+.soon-partner { margin-top: 28px; font-size: 15px; font-weight: 600; letter-spacing: .20em; color: var(--accent); animation: textIn 900ms var(--ease-cine) 740ms both; }
+.soon-partner:empty { display: none; }
 .soon-count { left: 0; right: 0; bottom: 96px; display: flex; justify-content: center; align-items: center; gap: 14px; animation: textIn 900ms var(--ease-cine) 820ms both; }
 .soon-count .lbl { font-size: 12px; font-weight: 600; letter-spacing: .34em; text-transform: uppercase; color: var(--muted-dim); }
 .soon-count .clock { font-family: var(--font-display); font-size: 26px; font-weight: 300; letter-spacing: .16em; color: var(--accent); font-variant-numeric: tabular-nums; }
