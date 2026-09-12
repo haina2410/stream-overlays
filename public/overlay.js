@@ -1,6 +1,6 @@
 // Viewer renderer. Builds a scene from state, plays exits and entrances.
 const FULL_SCENES = new Set(['soon', 'brb']);
-const EXIT_MS = { info: 700, soon: 600, brb: 600, clean: 0 };
+const EXIT_MS = { info: 700, chapter: 720, soon: 600, brb: 600, clean: 0 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -40,6 +40,17 @@ const builders = {
       el('div', 'info-meta', `<span class="bar"></span><span class="txt" data-bind="info.meta">${esc(d.meta)}</span>`, { 'data-text': '' }),
     );
     return [el('div', 'grain'), el('div', 'abs info-haze', null, { 'data-haze': '' }), box, tally(state)];
+  },
+  chapter(state) {
+    const d = state.chapter;
+    const box = el('div', 'abs chapter-box');
+    box.append(
+      el('div', 'kicker chapter-label', esc(d.label), { 'data-text': '', 'data-bind': 'chapter.label' }),
+      el('div', 'chapter-title', esc(d.title), { 'data-text': '', 'data-bind': 'chapter.title' }),
+      el('div', 'rule chapter-rule', null, { 'data-text': '' }),
+      el('div', 'chapter-objective', esc(d.objective), { 'data-text': '', 'data-bind': 'chapter.objective' }),
+    );
+    return [el('div', 'grain'), el('div', 'abs chapter-wash', null, { 'data-haze': '' }), box, tally(state)];
   },
   soon(state) {
     const d = state.soon;

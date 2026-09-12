@@ -18,7 +18,8 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; }
   body { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
-  @media (max-width: 900px) { body { grid-template-columns: 1fr; } }
+  .phone { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .phone code { display: inline-block; margin-top: 4px; }
 
   .side { border-right: 1px solid var(--line); padding: 28px 22px; display: flex; flex-direction: column; gap: 22px; }
   .brand { font-family: var(--font-display); font-size: 28px; font-weight: 300; letter-spacing: .30em; text-transform: uppercase; color: var(--text-hi); line-height: 1; }
@@ -70,7 +71,33 @@
   input[type=range] { accent-color: var(--accent); width: 100%; }
   .field-set { display: none; }
   .field-set.active { display: flex; flex-direction: column; gap: 16px; }
+  .chapters { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+  .chap {
+    display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; text-align: left;
+    padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); cursor: pointer; font: inherit;
+  }
+  .chap:hover { border-color: rgba(200,167,106,.45); }
+  .chap.active { border-color: var(--accent); background: rgba(200,167,106,.10); }
+  .chap .n { font-family: var(--font-display); font-size: 16px; letter-spacing: .12em; color: var(--muted-dim); }
+  .chap .t { font-size: 14px; letter-spacing: .04em; color: var(--text-hi); }
+  .chap .o { font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 3px; }
   .timer { font-family: var(--font-display); font-size: 22px; letter-spacing: .16em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; }
+    .side { border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 16px; gap: 16px; }
+    .brand { font-size: 22px; }
+    .scenes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .scene-btn { grid-template-columns: 1fr; gap: 4px; padding: 12px; min-height: 64px; border-color: var(--line); align-content: center; }
+    .scene-btn .name { font-size: 15px; }
+    .scene-btn .num { display: none; }
+    .main { padding: 16px 16px 48px; gap: 16px; }
+    .card { padding: 16px; }
+    .card h2 { font-size: 17px; }
+    .grid { grid-template-columns: 1fr; }
+    .btn { padding: 13px 16px; min-height: 44px; }
+    .obs { display: none; }
+    .chapters { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -84,11 +111,15 @@
   <div class="eyebrow">Cảnh</div>
   <div class="scenes" id="scenes"></div>
 
-  <div class="eyebrow" style="margin-top:8px">Nguồn browser trong OBS</div>
-  <div class="hint">URL <code id="viewerUrl"></code><br>Rộng 1920, cao 1080. Tắt tuỳ chọn "Shutdown source when not visible".</div>
-  <div class="row">
-    <button class="btn ghost" id="copyUrl">Sao chép URL</button>
-    <a class="btn ghost" id="openViewer" href="/viewer" target="_blank" style="text-decoration:none">Mở viewer</a>
+  <div class="obs">
+    <div class="eyebrow" style="margin-bottom:10px">Nguồn browser trong OBS</div>
+    <div class="hint">URL <code id="viewerUrl"></code><br>Rộng 1920, cao 1080. Tắt tuỳ chọn "Shutdown source when not visible".</div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" id="copyUrl">Sao chép URL</button>
+      <a class="btn ghost" id="openViewer" href="/viewer" target="_blank" style="text-decoration:none">Mở viewer</a>
+    </div>
+    <div class="eyebrow" style="margin:18px 0 8px">Điều khiển từ điện thoại</div>
+    <div class="phone" id="phoneUrls">Cùng mạng Wi-Fi, mở một trong các địa chỉ này.</div>
   </div>
 </aside>
 
@@ -117,6 +148,22 @@
         <label>Dòng phụ<input type="text" data-bind="info.secondary"></label>
         <label>Thể loại<input type="text" data-bind="info.meta"></label>
       </div>
+    </div>
+
+    <div class="field-set" data-scene="chapter">
+      <div class="eyebrow">Chọn nhanh</div>
+      <div class="chapters" id="chapterList"></div>
+      <div class="grid">
+        <label>Nhãn<input type="text" data-bind="chapter.label"></label>
+        <label>Tên chapter<input type="text" data-bind="chapter.title"></label>
+        <label>Nhiệm vụ<textarea data-bind="chapter.objective"></textarea></label>
+        <label>Giữ trên màn (ms)<input type="number" min="0" step="500" data-bind="chapter.holdMs"></label>
+      </div>
+      <div class="row">
+        <button class="btn" id="nextChapter">Chương tiếp theo</button>
+        <span class="hint">Hoặc gọi <code>POST /api/chapter/next</code> từ phím tắt hay Stream Deck.</span>
+      </div>
+      <div class="hint">Bấm một chapter để hiện ngay. Thẻ tự ẩn sau thời gian giữ và quay về cảnh đang chơi trước đó.</div>
     </div>
 
     <div class="field-set" data-scene="soon">
@@ -160,9 +207,11 @@
   const SCENES = [
     { id: 'clean', num: '01', name: 'Đang chơi', kind: 'overlay' },
     { id: 'info', num: '02', name: 'Thông tin game', kind: 'overlay' },
-    { id: 'soon', num: '03', name: 'Sắp bắt đầu', kind: 'toàn màn' },
-    { id: 'brb', num: '04', name: 'Quay lại ngay', kind: 'toàn màn' },
+    { id: 'chapter', num: '03', name: 'Chapter card', kind: 'tự ẩn' },
+    { id: 'soon', num: '04', name: 'Sắp bắt đầu', kind: 'toàn màn' },
+    { id: 'brb', num: '05', name: 'Quay lại ngay', kind: 'toàn màn' },
   ];
+  const TIMED = new Set(['chapter']);
   let state = null;
   let editing = 'clean';
   let dirty = new Set(); // bind paths the user is typing in
@@ -185,7 +234,7 @@
     b.className = 'scene-btn';
     b.dataset.scene = s.id;
     b.innerHTML = `<span class="num">${s.num}</span><span class="name">${s.name}</span><span class="kind">${s.kind}</span>`;
-    b.addEventListener('click', () => { selectEdit(s.id); show(s.id); });
+    b.addEventListener('click', () => { selectEdit(s.id); if (!TIMED.has(s.id)) show(s.id); });
     scenesEl.append(b);
   }
 
@@ -199,10 +248,27 @@
 
   function renderButtons() {
     const onAir = state?.scene === editing;
-    $('#showBtn').textContent = onAir ? 'Đang bật' : 'Bật cảnh này';
+    $('#showBtn').textContent = onAir && TIMED.has(editing) ? 'Hiện lại' : onAir ? 'Đang bật' : 'Bật cảnh này';
+    document.querySelectorAll('.chap').forEach((b) => b.classList.toggle('active', b.dataset.title === state?.chapter?.title));
   }
 
   $('#showBtn').addEventListener('click', () => show(editing));
+
+  $('#nextChapter').addEventListener('click', () => api('/api/chapter/next', {}));
+
+  // Chapter presets
+  fetch('/api/chapters').then((r) => r.json()).then((list) => {
+    const wrap = $('#chapterList');
+    for (const ch of list) {
+      const b = document.createElement('button');
+      b.className = 'chap';
+      b.dataset.title = ch.title;
+      b.innerHTML = `<span class="n">${String(ch.n).padStart(2, '0')}</span><span><div class="t">${ch.title}</div><div class="o">${ch.objective}</div></span>`;
+      b.addEventListener('click', () => show('chapter', { label: `Chương ${ch.n}`, title: ch.title, objective: ch.objective }));
+      wrap.append(b);
+    }
+    renderButtons();
+  });
 
   // Bound fields
   const timers = {};
@@ -269,6 +335,11 @@
   $('#viewerUrl').textContent = viewerUrl;
   $('#copyUrl').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(viewerUrl); $('#copyUrl').textContent = 'Đã sao chép'; setTimeout(() => ($('#copyUrl').textContent = 'Sao chép URL'), 1200); } catch {}
+  });
+
+  fetch('/api/addresses').then((r) => r.json()).then(({ port, lan }) => {
+    if (!lan.length) return;
+    $('#phoneUrls').innerHTML = 'Cùng mạng Wi-Fi, mở: ' + lan.map((ip) => `<code>http://${ip}:${port}/</code>`).join(' ');
   });
 
   // Scale preview
