@@ -27,7 +27,8 @@ setInterval(() => {
 
 const builders = {
   clean(state) {
-    return [el('div', 'grain'), el('div', 'vignette'), tally(state)];
+    // No full-frame vignette on gameplay. Dark washes sit only behind text.
+    return [el('div', 'grain'), tally(state)];
   },
   info(state) {
     const d = state.info;

@@ -5,6 +5,7 @@
 //   GET  /api/state   current state as JSON
 //   GET  /api/chapters preset chapter cards
 //   POST /api/chapter/next  show the next chapter card (for hotkeys)
+//   POST /api/loop    merge loop settings: { enabled?, steps? }
 //   POST /api/state   deep-merge a JSON patch into the state
 //   POST /api/show    switch scene: { scene, data? }
 //   GET  /events      Server-Sent Events stream of the full state
@@ -52,6 +53,12 @@ function lanAddresses() {
     .map((i) => i.address);
 }
 app.post('/api/chapter/next', (c) => c.json(store.nextChapter()));
+
+app.post('/api/loop', async (c) => {
+  const patch = await c.req.json().catch(() => null);
+  if (!patch || typeof patch !== 'object') return c.json({ error: 'body must be a JSON object' }, 400);
+  return c.json(store.setLoop(patch));
+});
 
 app.post('/api/state', async (c) => {
   const patch = await c.req.json().catch(() => null);

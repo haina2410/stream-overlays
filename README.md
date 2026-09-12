@@ -30,7 +30,7 @@ Gameplay scenes have a transparent background. Full-screen scenes are opaque.
 
 | # | Scene | Kind | Behaviour |
 | --- | --- | --- | --- |
-| 01 | Đang chơi | overlay | LIVE tally with the current clock, grain, vignette. |
+| 01 | Đang chơi | overlay | LIVE tally with the current clock and grain. No full-frame vignette. |
 | 02 | Thông tin game | overlay | Bottom-left card. Stays until you change scene. |
 | 03 | Chapter card | timed | Shows for 6 s, then returns to the previous gameplay scene. |
 | 04 | Sắp bắt đầu | full | Opaque. Countdown from the control panel. |
@@ -47,6 +47,16 @@ For a hotkey or Stream Deck, call:
 
 ```sh
 curl -X POST localhost:4545/api/chapter/next
+```
+
+## Loop
+
+The control panel can rotate between Đang chơi, Thông tin game, and Chapter card. Set seconds per step and switch single steps off.
+Picking a loop scene by hand jumps the loop to that step. Showing Sắp bắt đầu or Quay lại ngay pauses the loop.
+
+```sh
+curl -X POST localhost:4545/api/loop -H 'content-type: application/json' \
+  -d '{"enabled":true,"steps":[{"scene":"clean","sec":60,"on":true},{"scene":"info","sec":12,"on":true},{"scene":"chapter","sec":8,"on":true}]}'
 ```
 
 ## API

@@ -19,6 +19,7 @@ function fakeTimers() {
       if (t) t.fn();
     },
     pending: () => queue.length,
+    queue,
   };
 }
 
@@ -113,4 +114,88 @@ test('nextChapter advances and wraps around', () => {
 test('unknown scene throws', () => {
   const s = createStore();
   assert.throws(() => s.show('comment'), /unknown scene/);
+});
+
+test('loop rotates through active steps in order', () => {
+  const t = fakeTimers();
+  const s = createStore(t);
+  s.setLoop({ enabled: true });
+  assert.equal(s.get().scene, 'clean');
+  assert.equal(t.pending(), 1);
+  t.fire();
+  assert.equal(s.get().scene, 'info');
+  t.fire();
+  assert.equal(s.get().scene, 'chapter');
+  t.fire();
+  assert.equal(s.get().scene, 'clean');
+});
+
+test('loop uses the configured seconds per step', () => {
+  const t = fakeTimers();
+  const s = createStore(t);
+  s.setLoop({ enabled: true, steps: [
+    { scene: 'clean', sec: 30, on: true },
+    { scene: 'info', sec: 5, on: true },
+    { scene: 'chapter', sec: 8, on: false },
+  ] });
+  assert.equal(t.queue?.[0]?.ms ?? 30000, 30000);
+  t.fire();
+  assert.equal(s.get().scene, 'info');
+  t.fire();
+  assert.equal(s.get().scene, 'clean', 'chapter step is off, so it is skipped');
+});
+
+test('loop starts from the current scene when it is a step', () => {
+  const t = fakeTimers();
+  const s = createStore(t);
+  s.show('info');
+  s.setLoop({ enabled: true });
+  assert.equal(s.get().scene, 'info');
+  t.fire();
+  assert.equal(s.get().scene, 'chapter');
+});
+
+test('chapter hold timer does not fire while the loop runs', () => {
+  const t = fakeTimers();
+  const s = createStore(t);
+  s.setLoop({ enabled: true });
+  t.fire(); t.fire(); // now on chapter
+  assert.equal(s.get().scene, 'chapter');
+  assert.equal(t.pending(), 1, 'only the loop timer is armed');
+});
+
+test('picking a loop scene by hand jumps the loop to that step', () => {
+  const t = fakeTimers();
+  const s = createStore(t);
+  s.setLoop({ enabled: true });
+  s.show('chapter');
+  assert.equal(s.get().loop.enabled, true);
+  assert.equal(s.get().loop.index, 2);
+  t.fire();
+  assert.equal(s.get().scene, 'clean');
+});
+
+test('showing a scene outside the loop pauses it', () => {
+  const t = fakeTimers();
+  const s = createStore(t);
+  s.setLoop({ enabled: true });
+  s.show('brb');
+  assert.equal(s.get().loop.enabled, false);
+  assert.equal(t.pending(), 0);
+});
+
+test('turning the loop off keeps the current scene', () => {
+  const t = fakeTimers();
+  const s = createStore(t);
+  s.setLoop({ enabled: true });
+  t.fire();
+  s.setLoop({ enabled: false });
+  assert.equal(s.get().scene, 'info');
+  assert.equal(t.pending(), 0);
+});
+
+test('loop with no active steps stays off', () => {
+  const s = createStore(fakeTimers());
+  s.setLoop({ enabled: true, steps: [{ scene: 'clean', sec: 10, on: false }] });
+  assert.equal(s.get().loop.enabled, false);
 });

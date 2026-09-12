@@ -18,6 +18,16 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; }
   body { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
+  .loop-steps { display: flex; flex-direction: column; gap: 8px; }
+  .step { display: grid; grid-template-columns: 24px 1fr 110px; gap: 12px; align-items: center; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); }
+  .step.now { border-color: rgba(200,167,106,.55); }
+  .step.off { opacity: .5; }
+  .step .nm { font-size: 14px; letter-spacing: .04em; color: var(--text-hi); }
+  .step .sec { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .step .sec input { width: 70px; padding: 8px 10px; }
+  .step input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  .loop-status { font-size: 13px; color: var(--muted); }
+  .loop-status.on { color: var(--accent); }
   .phone { font-size: 13px; color: var(--muted); line-height: 1.6; }
   .phone code { display: inline-block; margin-top: 4px; }
 
@@ -137,7 +147,7 @@
     </div>
 
     <div class="field-set" data-scene="clean">
-      <div class="hint">Cảnh mặc định. Chỉ có chữ LIVE, đồng hồ, hạt nhiễu và viền tối. Không có gì để sửa.</div>
+      <div class="hint">Cảnh mặc định. Chỉ có chữ LIVE, đồng hồ và hạt nhiễu. Không có gì để sửa.</div>
     </div>
 
     <div class="field-set" data-scene="info">
@@ -191,6 +201,16 @@
         <button class="btn ghost" data-preset='{"headline":"Chờ chút.","sub":"Mình quay lại sớm."}'>Chờ chút</button>
       </div>
     </div>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2>Vòng lặp</h2>
+      <button class="btn primary" id="loopToggle">Bật vòng lặp</button>
+    </div>
+    <div class="hint">Tự xoay vòng giữa các cảnh đang chơi theo thứ tự dưới đây. Sửa số giây cho từng bước, bỏ chọn để bỏ qua bước đó.</div>
+    <div class="loop-steps" id="loopSteps"></div>
+    <div class="loop-status" id="loopStatus">Đang tắt.</div>
   </section>
 
   <section class="card">
@@ -255,6 +275,49 @@
   $('#showBtn').addEventListener('click', () => show(editing));
 
   $('#nextChapter').addEventListener('click', () => api('/api/chapter/next', {}));
+
+  // Loop
+  const STEP_NAMES = { clean: '01 Đang chơi', info: '02 Thông tin game', chapter: '03 Chapter card' };
+  const setLoop = (p) => api('/api/loop', p);
+  let stepTimers = {};
+  function readSteps() {
+    return [...document.querySelectorAll('.step')].map((row) => ({
+      scene: row.dataset.scene,
+      on: row.querySelector('input[type=checkbox]').checked,
+      sec: Math.max(1, Number(row.querySelector('input[type=number]').value) || 1),
+    }));
+  }
+  function renderLoop(s) {
+    const wrap = $('#loopSteps');
+    if (!wrap.children.length) {
+      s.loop.steps.forEach((st) => {
+        const row = document.createElement('div');
+        row.className = 'step';
+        row.dataset.scene = st.scene;
+        row.innerHTML = `<input type="checkbox"><span class="nm">${STEP_NAMES[st.scene] || st.scene}</span><span class="sec"><input type="number" min="1" step="1"> giây</span>`;
+        row.querySelector('input[type=checkbox]').addEventListener('change', () => setLoop({ steps: readSteps() }));
+        const num = row.querySelector('input[type=number]');
+        num.addEventListener('input', () => { dirty.add('loop'); clearTimeout(stepTimers[st.scene]); stepTimers[st.scene] = setTimeout(() => setLoop({ steps: readSteps() }), 400); });
+        num.addEventListener('blur', () => dirty.delete('loop'));
+        wrap.append(row);
+      });
+    }
+    s.loop.steps.forEach((st, i) => {
+      const row = wrap.children[i];
+      if (!row) return;
+      row.classList.toggle('now', s.loop.enabled && s.loop.index === i);
+      row.classList.toggle('off', !st.on);
+      row.querySelector('input[type=checkbox]').checked = !!st.on;
+      const num = row.querySelector('input[type=number]');
+      if (!dirty.has('loop') && document.activeElement !== num) num.value = st.sec;
+    });
+    $('#loopToggle').textContent = s.loop.enabled ? 'Tắt vòng lặp' : 'Bật vòng lặp';
+    $('#loopToggle').classList.toggle('primary', !s.loop.enabled);
+    const cur = s.loop.steps[s.loop.index];
+    $('#loopStatus').textContent = s.loop.enabled ? `Đang chạy. Bước hiện tại: ${STEP_NAMES[cur?.scene] || ''}.` : 'Đang tắt. Bật cảnh Sắp bắt đầu hoặc Quay lại ngay cũng sẽ tạm dừng vòng lặp.';
+    $('#loopStatus').classList.toggle('on', s.loop.enabled);
+  }
+  $('#loopToggle').addEventListener('click', () => setLoop({ enabled: !state?.loop?.enabled, steps: readSteps() }));
 
   // Chapter presets
   fetch('/api/chapters').then((r) => r.json()).then((list) => {
@@ -322,6 +385,7 @@
     });
     updateThemeLabels();
     renderButtons();
+    renderLoop(s);
   }
 
   // Live updates
