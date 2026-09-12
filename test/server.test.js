@@ -1,0 +1,128 @@
+import { after, test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createApp } from '../server.js';
+import { games } from '../games/index.js';
+
+const directories = [];
+
+after(async () => {
+  await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
+});
+
+async function fixturePaths() {
+  const directory = await mkdtemp(join(tmpdir(), 'stream-overlay-server-'));
+  directories.push(directory);
+  return { publicDir: directory, stateFile: join(directory, 'state.json') };
+}
+
+function createFixtureStore({ initialState } = {}) {
+  let state = { score: 0, ...initialState };
+  const listeners = new Set();
+  return {
+    get: () => state,
+    patch(patch) {
+      state = { ...state, ...patch };
+      for (const listener of listeners) listener(state);
+      return state;
+    },
+    onChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+function fixtureGame(publicDir) {
+  return {
+    id: 'fixture',
+    name: 'Fixture',
+    description: 'Test-only game package',
+    publicDir,
+    createStore: createFixtureStore,
+    registerRoutes() {},
+  };
+}
+
+test('catalog lists packages and validates active-game selection', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app, manager } = createApp({ definitions: [...games, fixtureGame(publicDir)], stateFile, logger: null });
+
+  const catalog = await app.request('/api/games').then((response) => response.json());
+  assert.equal(catalog.activeGameId, 'reanimal');
+  assert.deepEqual(catalog.games.map(({ id }) => id), ['reanimal', 'fixture']);
+
+  const selected = await app.request('/api/games/active', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gameId: 'fixture' }),
+  });
+  assert.equal(selected.status, 200);
+  assert.equal(manager.activeId(), 'fixture');
+
+  const invalid = await app.request('/api/games/active', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gameId: 'missing' }),
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(manager.activeId(), 'fixture');
+
+  const malformed = await app.request('/api/games/active', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{not json',
+  });
+  assert.equal(malformed.status, 400);
+});
+
+test('scoped state and compatibility APIs follow the active package', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app } = createApp({ definitions: [...games, fixtureGame(publicDir)], stateFile, logger: null });
+
+  const reanimalState = await app.request('/games/reanimal/api/state').then((response) => response.json());
+  assert.equal(reanimalState.scene, 'clean');
+
+  await app.request('/api/games/active', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gameId: 'fixture' }),
+  });
+
+  const activeState = await app.request('/api/state').then((response) => response.json());
+  assert.deepEqual(activeState, { score: 0 });
+
+  const unsupported = await app.request('/api/chapters');
+  assert.equal(unsupported.status, 404);
+  assert.deepEqual(await unsupported.json(), {
+    error: 'unsupported game API',
+    gameId: 'fixture',
+    path: '/api/chapters',
+  });
+});
+
+test('scoped REANIMAL updates and active selection persist through the manager', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app, manager } = createApp({ definitions: [...games, fixtureGame(publicDir)], stateFile, logger: null });
+
+  const shown = await app.request('/games/reanimal/api/show', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scene: 'info' }),
+  });
+  assert.equal(shown.status, 200);
+
+  await app.request('/api/games/active', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gameId: 'fixture' }),
+  });
+  await manager.flush();
+
+  const saved = JSON.parse(await readFile(stateFile, 'utf8'));
+  assert.equal(saved.version, 2);
+  assert.equal(saved.activeGameId, 'fixture');
+  assert.equal(saved.games.reanimal.scene, 'info');
+});

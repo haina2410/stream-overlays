@@ -1,14 +1,4 @@
-// Local OBS overlay server.
-// Routes:
-//   GET  /            control panel
-//   GET  /viewer      overlay page for the OBS browser source
-//   GET  /api/state   current state as JSON
-//   GET  /api/chapters preset chapter cards
-//   POST /api/chapter/next  show the next chapter card (for hotkeys)
-//   POST /api/loop    merge loop settings: { enabled?, steps? }
-//   POST /api/state   deep-merge a JSON patch into the state
-//   POST /api/show    switch scene: { scene, data? }
-//   GET  /events      Server-Sent Events stream of the full state
+// Local OBS overlay host for registered game packages.
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -17,7 +7,9 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { createStore, SCENES, CHAPTERS } from './lib/store.js';
+import { games } from './games/index.js';
+import { createGameManager } from './lib/game-manager.js';
+import { createGameRegistry } from './lib/game-registry.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4545);
@@ -27,73 +19,99 @@ const HEARTBEAT_MS = 25_000;
 const DEV = process.argv.includes('--dev');
 const DEV_GENERATION = DEV ? randomUUID() : null;
 
-const store = createStore({ file: STATE_FILE });
-const clients = new Set();
+export function createApp({ definitions = games, stateFile = STATE_FILE, logger = console } = {}) {
+  const registry = createGameRegistry(definitions);
+  const manager = createGameManager({ registry, file: stateFile, logger });
+  const app = new Hono();
+  const hostClients = new Set();
 
-store.onChange((state) => {
+  manager.onChange((state) => broadcast(hostClients, state));
+
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'no-store');
+  });
+
+  app.get('/', serveStatic({ root: path.join(ROOT, 'public'), path: 'control.html' }));
+  app.get('/viewer', serveStatic({ root: path.join(ROOT, 'public'), path: 'viewer.html' }));
+  app.get('/api/games', (c) => c.json(manager.catalog()));
+  app.post('/api/games/active', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || !registry.get(body.gameId)) {
+      return c.json({ error: 'unknown game', gameIds: registry.list().map(({ id }) => id) }, 400);
+    }
+    manager.setActive(body.gameId);
+    return c.json(manager.catalog());
+  });
+  app.get('/api/addresses', (c) => c.json({ port: PORT, lan: lanAddresses() }));
+  app.get('/api/dev', (c) => c.json({ enabled: DEV, generation: DEV_GENERATION }));
+  app.get('/events', stateEvents(hostClients, () => ({ ...manager.activeState(), gameId: manager.activeId() })));
+
+  for (const definition of registry.list()) {
+    mountGame(app, definition, manager.getStore(definition.id));
+  }
+
+  app.all('/api/*', async (c) => {
+    const gameId = manager.activeId();
+    const url = new URL(c.req.url);
+    url.pathname = `/games/${encodeURIComponent(gameId)}${c.req.path}`;
+    const response = await app.fetch(new Request(url, c.req.raw));
+    if (response.status !== 404) return response;
+    return c.json({ error: 'unsupported game API', gameId, path: c.req.path }, 404);
+  });
+
+  app.use('/*', serveStatic({ root: path.join(ROOT, 'public') }));
+  return { app, manager };
+}
+
+function mountGame(app, definition, store) {
+  const prefix = `/games/${definition.id}`;
+  const assetsPrefix = `${prefix}/assets`;
+  const clients = new Set();
+  store.onChange((state) => broadcast(clients, state));
+
+  app.get(`${prefix}/control`, serveStatic({ root: definition.publicDir, path: 'control.html' }));
+  app.get(`${prefix}/viewer`, serveStatic({ root: definition.publicDir, path: 'viewer.html' }));
+  app.get(`${assetsPrefix}/*`, serveStatic({
+    root: definition.publicDir,
+    rewriteRequestPath: (requestPath) => requestPath.slice(assetsPrefix.length),
+  }));
+  app.get(`${prefix}/api/state`, (c) => c.json(store.get()));
+  app.get(`${prefix}/events`, stateEvents(clients, () => store.get()));
+
+  const packageApp = new Hono();
+  definition.registerRoutes(packageApp, { store });
+  app.route(prefix, packageApp);
+}
+
+function stateEvents(clients, state) {
+  return (c) => streamSSE(c, async (stream) => {
+    clients.add(stream);
+    await stream.writeSSE({ event: 'state', data: JSON.stringify(state()) });
+    const heartbeat = setInterval(() => stream.write(': ping\n\n'), HEARTBEAT_MS);
+    await new Promise((resolve) => stream.onAbort(resolve));
+    clearInterval(heartbeat);
+    clients.delete(stream);
+  });
+}
+
+function broadcast(clients, state) {
   for (const stream of clients) stream.writeSSE({ event: 'state', data: JSON.stringify(state) });
-});
-
-const app = new Hono();
-
-app.use('*', async (c, next) => {
-  await next();
-  c.header('Cache-Control', 'no-store');
-});
-
-app.get('/', serveStatic({ path: './public/control.html' }));
-app.get('/viewer', serveStatic({ path: './public/viewer.html' }));
-
-app.get('/api/state', (c) => c.json(store.get()));
-app.get('/api/chapters', (c) => c.json(CHAPTERS));
-app.get('/api/addresses', (c) => c.json({ port: PORT, lan: lanAddresses() }));
-app.get('/api/dev', (c) => c.json({ enabled: DEV, generation: DEV_GENERATION }));
+}
 
 // IPv4 addresses of this machine on the local network, for the phone.
 function lanAddresses() {
   return Object.values(os.networkInterfaces())
     .flat()
-    .filter((i) => i && i.family === 'IPv4' && !i.internal)
-    .map((i) => i.address);
+    .filter((network) => network && network.family === 'IPv4' && !network.internal)
+    .map((network) => network.address);
 }
-app.post('/api/chapter/next', (c) => c.json(store.nextChapter()));
 
-app.post('/api/loop', async (c) => {
-  const patch = await c.req.json().catch(() => null);
-  if (!patch || typeof patch !== 'object') return c.json({ error: 'body must be a JSON object' }, 400);
-  return c.json(store.setLoop(patch));
-});
-
-app.post('/api/state', async (c) => {
-  const patch = await c.req.json().catch(() => null);
-  if (!patch || typeof patch !== 'object') return c.json({ error: 'body must be a JSON object' }, 400);
-  return c.json(store.patch(patch));
-});
-
-app.post('/api/show', async (c) => {
-  const body = await c.req.json().catch(() => null);
-  if (!body || !SCENES.includes(body.scene)) {
-    return c.json({ error: `unknown scene: ${body?.scene}`, scenes: SCENES }, 400);
-  }
-  return c.json(store.show(body.scene, body.data));
-});
-
-app.get('/events', (c) =>
-  streamSSE(c, async (stream) => {
-    clients.add(stream);
-    await stream.writeSSE({ event: 'state', data: JSON.stringify(store.get()) });
-    // Keep the connection alive through OBS idle timeouts.
-    const heartbeat = setInterval(() => stream.write(': ping\n\n'), HEARTBEAT_MS);
-    await new Promise((resolve) => stream.onAbort(resolve));
-    clearInterval(heartbeat);
-    clients.delete(stream);
-  }),
-);
-
-app.use('/*', serveStatic({ root: './public' }));
-
-serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
-  console.log(`control  http://127.0.0.1:${PORT}/`);
-  for (const ip of lanAddresses()) console.log(`phone    http://${ip}:${PORT}/`);
-  console.log(`viewer   http://127.0.0.1:${PORT}/viewer   (OBS browser source, 1920x1080)`);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const { app } = createApp();
+  serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
+    console.log(`control  http://127.0.0.1:${PORT}/`);
+    for (const ip of lanAddresses()) console.log(`phone    http://${ip}:${PORT}/`);
+    console.log(`viewer   http://127.0.0.1:${PORT}/viewer   (OBS browser source, 1920x1080)`);
+  });
+}

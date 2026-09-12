@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGameManager } from '../lib/game-manager.js';
 import { createGameRegistry } from '../lib/game-registry.js';
-import { createStore as createReanimalStore } from '../lib/store.js';
+import { createStore as createReanimalStore } from '../games/reanimal/store.js';
 
 const directories = [];
 
