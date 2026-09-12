@@ -29,6 +29,30 @@ test('default scene is clean and all scenes are known', () => {
   assert.deepEqual(SCENES, ['clean', 'info', 'chapter', 'soon', 'brb']);
 });
 
+test('initial state is merged with the default state', () => {
+  const s = createStore({
+    initialState: {
+      scene: 'info',
+      theme: { accent: '#ffffff' },
+      chapter: { title: 'Restored chapter' },
+    },
+  });
+
+  assert.equal(s.get().scene, 'info');
+  assert.equal(s.get().theme.accent, '#ffffff');
+  assert.equal(s.get().theme.grain, 0.055);
+  assert.equal(s.get().chapter.title, 'Restored chapter');
+  assert.equal(s.get().chapter.holdMs, 6000);
+});
+
+test('restored timed or unknown scenes return to their saved fallback', () => {
+  const timed = createStore({ initialState: { scene: 'chapter', returnTo: 'info' } });
+  const unknown = createStore({ initialState: { scene: 'missing', returnTo: 'clean' } });
+
+  assert.equal(timed.get().scene, 'info');
+  assert.equal(unknown.get().scene, 'clean');
+});
+
 test('base game has 9 chapters with title and objective', () => {
   assert.equal(CHAPTERS.length, 9);
   CHAPTERS.forEach((c, i) => {
