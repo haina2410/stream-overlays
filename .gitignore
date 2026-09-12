@@ -1,0 +1,4 @@
+node_modules/
+.pnpm-store/
+state.json
+.DS_Store

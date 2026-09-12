@@ -1,0 +1,125 @@
+/* REANIMAL broadcast package. Canvas is 1920x1080. */
+:root {
+  --ink-900: #071014;
+  --ink-800: #0B151B;
+  --ink-700: #10191D;
+  --fog-teal: #1C3A46;
+  --text-hi: #E6E6E0;
+  --text: #D5D5CF;
+  --muted: #7E898A;
+  --muted-dim: #5E6A6C;
+  --accent: #C8A76A;
+  --accent-hi: #E8CE97;
+  --live: #C05A4A;
+  --grain: 0.055;
+  --font-display: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body: 'Source Sans 3', system-ui, sans-serif;
+  --ease-cine: cubic-bezier(.16, .84, .24, 1);
+  --ease-sweep: cubic-bezier(.33, .02, .42, 1);
+  --grain-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+body {
+  width: 1920px;
+  height: 1080px;
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+/* Preview mode paints a gameplay frame behind the overlay. Replace public/previews/gameplay.webp with your own. */
+body.preview {
+  background: #071014 url('/previews/gameplay.webp') center / cover no-repeat;
+}
+
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+.scene { position: absolute; inset: 0; }
+.abs { position: absolute; }
+
+@keyframes hazeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(7px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes textIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes sweep { 0% { opacity: 0; transform: translateX(-40%) } 35% { opacity: .5 } 100% { opacity: 0; transform: translateX(140%) } }
+@keyframes grainDrift { 0% { transform: translate3d(0,0,0) } 25% { transform: translate3d(-1.5%,1%,0) } 50% { transform: translate3d(1%,-1.5%,0) } 75% { transform: translate3d(-1%,-1%,0) } 100% { transform: translate3d(0,0,0) } }
+@keyframes fogBreath { 0%, 100% { opacity: .92 } 50% { opacity: 1 } }
+@keyframes lanternFlicker { 0%, 88%, 100% { opacity: .85 } 91% { opacity: .55 } 93% { opacity: .95 } 96% { opacity: .7 } }
+
+/* Full-frame layers */
+.grain {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: var(--grain-tile);
+  opacity: var(--grain);
+  mix-blend-mode: overlay;
+  animation: grainDrift 9s steps(4, end) infinite;
+}
+.vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 340px 90px rgba(4, 8, 10, .55); }
+.vignette.deep { box-shadow: inset 0 0 420px 120px rgba(3, 6, 8, .72); }
+.vignette.brb { box-shadow: inset 0 0 400px 130px rgba(3, 6, 8, .70); }
+
+/* Live tally */
+.tally { left: 56px; top: 52px; display: flex; align-items: center; gap: 12px; }
+.tally .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); box-shadow: 0 0 12px rgba(192, 90, 74, .7); }
+.tally .label { font-size: 12px; font-weight: 600; letter-spacing: .30em; text-transform: uppercase; color: rgba(213, 213, 207, .62); }
+.tally .sep { width: 1px; height: 12px; background: rgba(213, 213, 207, .22); margin: 0 2px; }
+.tally .clock { font-family: var(--font-display); font-size: 15px; font-weight: 300; letter-spacing: .18em; color: rgba(213, 213, 207, .62); font-variant-numeric: tabular-nums; }
+
+/* Shared type */
+.kicker { font-size: 13px; font-weight: 600; letter-spacing: .30em; text-transform: uppercase; color: var(--accent); }
+.rule { height: 1px; background: linear-gradient(90deg, rgba(200, 167, 106, .70) 0%, rgba(200, 167, 106, 0) 100%); }
+
+/* 02 Game information card */
+.info-haze {
+  left: 0; bottom: 0; width: 760px; height: 520px; pointer-events: none;
+  background: radial-gradient(120% 110% at 8% 100%, rgba(7,16,20,.94) 0%, rgba(9,19,25,.78) 34%, rgba(11,21,27,.34) 62%, rgba(11,21,27,0) 86%);
+  animation: hazeIn 700ms var(--ease-cine) both, fogBreath 14s ease-in-out 1.4s infinite;
+}
+.info-box { left: 56px; bottom: 56px; width: 420px; height: 240px; display: flex; flex-direction: column; justify-content: flex-end; }
+.info-word {
+  position: relative; font-family: var(--font-display); font-size: 46px; font-weight: 400; letter-spacing: .34em; text-transform: uppercase; line-height: 1; color: var(--text-hi);
+  animation: riseIn 760ms var(--ease-cine) 180ms both;
+}
+.info-word .sweep {
+  position: absolute; left: -10%; top: 8%; width: 38%; height: 84%;
+  background: linear-gradient(90deg, rgba(200,167,106,0) 0%, rgba(200,167,106,.30) 50%, rgba(200,167,106,0) 100%);
+  filter: blur(10px);
+  animation: sweep 1100ms var(--ease-sweep) 780ms both;
+}
+.info-kicker { margin-top: 16px; animation: textIn 620ms var(--ease-cine) 320ms both; }
+.info-main { margin-top: 22px; font-family: var(--font-display); font-size: 30px; font-weight: 300; letter-spacing: .015em; line-height: 1.18; color: var(--text); white-space: pre-line; animation: textIn 640ms var(--ease-cine) 420ms both; }
+.info-secondary { margin-top: 12px; font-size: 19px; font-weight: 300; line-height: 1.4; color: #8C9698; animation: textIn 640ms var(--ease-cine) 520ms both; }
+.info-meta { margin-top: 22px; display: flex; align-items: center; gap: 12px; animation: textIn 640ms var(--ease-cine) 640ms both; }
+.info-meta .bar { width: 26px; height: 1px; background: rgba(200, 167, 106, .45); }
+.info-meta .txt { font-size: 12px; font-weight: 600; letter-spacing: .26em; text-transform: uppercase; color: var(--muted); }
+
+/* 05 Starting soon */
+.soon-base { inset: 0; background: linear-gradient(180deg, #0B151B 0%, #0A141A 42%, #071014 78%, #05090B 100%); }
+.soon-fog { left: -10%; right: -10%; bottom: 0; height: 62%; background: radial-gradient(70% 100% at 50% 100%, rgba(28,58,70,.55) 0%, rgba(16,37,46,.28) 45%, rgba(7,16,20,0) 78%); animation: fogBreath 18s ease-in-out infinite; }
+.soon-floor { left: 0; right: 0; bottom: 0; height: 26%; background: linear-gradient(180deg, rgba(5,9,11,0) 0%, rgba(5,9,11,.85) 62%, #05090B 100%); }
+.soon-horizon { left: 640px; bottom: 190px; width: 640px; height: 1px; background: linear-gradient(90deg, rgba(126,137,138,0) 0%, rgba(126,137,138,.22) 50%, rgba(126,137,138,0) 100%); }
+.lantern-big { left: 952px; bottom: 196px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-hi); box-shadow: 0 0 18px 6px rgba(200,167,106,.55), 0 0 90px 40px rgba(200,167,106,.14); animation: lanternFlicker 9s ease-in-out infinite; }
+.soon-center { inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 60px; box-sizing: border-box; }
+.soon-kicker { font-size: 14px; font-weight: 600; letter-spacing: .48em; text-transform: uppercase; color: #6E7A7C; animation: textIn 900ms var(--ease-cine) 200ms both; }
+.soon-word { margin-top: 46px; font-family: var(--font-display); font-size: 146px; font-weight: 200; letter-spacing: .40em; text-transform: uppercase; line-height: 1; color: var(--text-hi); text-indent: .40em; animation: riseIn 1100ms var(--ease-cine) 380ms both; }
+.soon-line { margin-top: 54px; font-size: 23px; font-weight: 300; font-style: italic; line-height: 1.5; color: #98A2A3; animation: textIn 900ms var(--ease-cine) 640ms both; }
+.soon-count { left: 0; right: 0; bottom: 96px; display: flex; justify-content: center; align-items: center; gap: 14px; animation: textIn 900ms var(--ease-cine) 820ms both; }
+.soon-count .lbl { font-size: 12px; font-weight: 600; letter-spacing: .34em; text-transform: uppercase; color: var(--muted-dim); }
+.soon-count .clock { font-family: var(--font-display); font-size: 26px; font-weight: 300; letter-spacing: .16em; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* 06 Be right back */
+.brb-base { inset: 0; background: linear-gradient(160deg, #0B151B 0%, #071014 55%, #05090B 100%); }
+.brb-fog { left: -6%; top: 20%; width: 70%; height: 70%; background: radial-gradient(60% 60% at 30% 50%, rgba(20,44,54,.42) 0%, rgba(7,16,20,0) 75%); animation: fogBreath 20s ease-in-out infinite; }
+.lantern-small { left: 1420px; top: 612px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-hi); box-shadow: 0 0 16px 5px rgba(200,167,106,.45), 0 0 80px 34px rgba(200,167,106,.10); animation: lanternFlicker 11s ease-in-out infinite; }
+.brb-box { left: 200px; top: 432px; width: 760px; }
+.brb-head { font-family: var(--font-display); font-size: 96px; font-weight: 300; letter-spacing: .20em; text-transform: uppercase; line-height: 1; color: var(--text-hi); animation: riseIn 1000ms var(--ease-cine) 160ms both; }
+.brb-rule { margin-top: 40px; width: 120px; background: linear-gradient(90deg, rgba(200,167,106,.55) 0%, rgba(200,167,106,0) 100%); animation: textIn 800ms var(--ease-cine) 520ms both; }
+.brb-sub { margin-top: 34px; font-size: 26px; font-weight: 300; line-height: 1.5; color: #8C9698; animation: textIn 800ms var(--ease-cine) 660ms both; }
+
+/* Exit: text fades in reverse order, haze follows. Delays are set by JS. */
+.scene.is-exiting [data-text] { animation: none !important; opacity: 0; transition: opacity 260ms ease-out; }
+.scene.is-exiting [data-haze] { animation: none !important; opacity: 0; transition: opacity 600ms ease-out; }
+.scene.is-exiting.full { opacity: 0; transition: opacity 600ms ease-out; }

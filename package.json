@@ -1,0 +1,19 @@
+{
+  "name": "stream-overlay",
+  "version": "1.0.0",
+  "description": "Local OBS overlay server for the REANIMAL broadcast package",
+  "packageManager": "pnpm@10.33.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.7"
+  }
+}
