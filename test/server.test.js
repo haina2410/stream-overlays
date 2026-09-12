@@ -126,3 +126,24 @@ test('scoped REANIMAL updates and active selection persist through the manager',
   assert.equal(saved.activeGameId, 'fixture');
   assert.equal(saved.games.reanimal.scene, 'info');
 });
+
+test('canceling host and scoped event streams clears their heartbeats', async (t) => {
+  const { stateFile } = await fixturePaths();
+  const timers = [];
+  const cleared = [];
+  t.mock.method(globalThis, 'setInterval', () => {
+    const timer = {};
+    timers.push(timer);
+    return timer;
+  });
+  t.mock.method(globalThis, 'clearInterval', (timer) => cleared.push(timer));
+  const { app } = createApp({ stateFile, logger: null });
+
+  for (const path of ['/events', '/games/reanimal/events']) {
+    const response = await app.request(path);
+    await response.body.cancel();
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  assert.equal(cleared.length, timers.length);
+});

@@ -86,12 +86,26 @@ function mountGame(app, definition, store) {
 
 function stateEvents(clients, state) {
   return (c) => streamSSE(c, async (stream) => {
+    let aborted = false;
+    let resolveAbort;
+    const abort = new Promise((resolve) => {
+      resolveAbort = resolve;
+    });
+    stream.onAbort(() => {
+      aborted = true;
+      resolveAbort();
+    });
     clients.add(stream);
-    await stream.writeSSE({ event: 'state', data: JSON.stringify(state()) });
-    const heartbeat = setInterval(() => stream.write(': ping\n\n'), HEARTBEAT_MS);
-    await new Promise((resolve) => stream.onAbort(resolve));
-    clearInterval(heartbeat);
-    clients.delete(stream);
+    let heartbeat;
+    try {
+      await stream.writeSSE({ event: 'state', data: JSON.stringify(state()) });
+      if (aborted) return;
+      heartbeat = setInterval(() => stream.write(': ping\n\n'), HEARTBEAT_MS);
+      await abort;
+    } finally {
+      if (heartbeat) clearInterval(heartbeat);
+      clients.delete(stream);
+    }
   });
 }
 
