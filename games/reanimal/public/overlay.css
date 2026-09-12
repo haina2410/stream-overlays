@@ -32,9 +32,9 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
-/* Preview mode paints a gameplay frame behind the overlay. Replace public/previews/gameplay.webp with your own. */
+/* Preview mode paints a gameplay frame behind the overlay. Replace games/reanimal/public/previews/gameplay.webp with your own. */
 body.preview {
-  background: #071014 url('/previews/gameplay.webp') center / cover no-repeat;
+  background: #071014 url('/games/reanimal/assets/previews/gameplay.webp') center / cover no-repeat;
 }
 
 #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }

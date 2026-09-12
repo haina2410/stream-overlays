@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Overlay viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@200;300;400;500&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/games/reanimal/assets/overlay.css">
+</head>
+<body>
+<div id="stage"></div>
+<script type="module" src="/dev-reload.js"></script>
+<script type="module">
+  import { createViewer } from '/games/reanimal/assets/overlay.js';
+  if (new URLSearchParams(location.search).has('preview')) document.body.classList.add('preview');
+  const viewer = createViewer(document.getElementById('stage'));
+  const es = new EventSource('/games/reanimal/events');
+  es.addEventListener('state', (e) => viewer.update(JSON.parse(e.data)));
+  es.onerror = () => { /* EventSource reconnects on its own */ };
+</script>
+</body>
+</html>

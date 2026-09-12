@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Điều khiển overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #05090B; --panel: #0B151B; --panel-2: #10191D; --line: rgba(213,213,207,.10);
+    --text: #D5D5CF; --text-hi: #E6E6E0; --muted: #7E898A; --muted-dim: #5E6A6C;
+    --accent: #C8A76A; --accent-hi: #E8CE97; --live: #C05A4A;
+    --font-display: 'Oswald', 'Arial Narrow', sans-serif; --font-body: 'Source Sans 3', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; }
+  body { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
+  .loop-steps { display: flex; flex-direction: column; gap: 8px; }
+  .step { display: grid; grid-template-columns: 24px 1fr 110px; gap: 12px; align-items: center; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); }
+  .step.now { border-color: rgba(200,167,106,.55); }
+  .step.off { opacity: .5; }
+  .step .nm { font-size: 14px; letter-spacing: .04em; color: var(--text-hi); }
+  .step .sec { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .step .sec input { width: 70px; padding: 8px 10px; }
+  .step input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  .loop-status { font-size: 13px; color: var(--muted); }
+  .loop-status.on { color: var(--accent); }
+  .phone { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .phone code { display: inline-block; margin-top: 4px; }
+
+  .side { border-right: 1px solid var(--line); padding: 28px 22px; display: flex; flex-direction: column; gap: 22px; }
+  .brand { font-family: var(--font-display); font-size: 28px; font-weight: 300; letter-spacing: .30em; text-transform: uppercase; color: var(--text-hi); line-height: 1; }
+  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .30em; text-transform: uppercase; color: var(--accent); }
+  .status { display: flex; align-items: center; gap: 10px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-dim); }
+  .status.on .dot { background: var(--live); box-shadow: 0 0 10px rgba(192,90,74,.7); }
+
+  .scenes { display: flex; flex-direction: column; gap: 6px; }
+  .scene-btn {
+    display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; text-align: left;
+    padding: 12px 14px; background: transparent; border: 1px solid transparent; color: var(--text); cursor: pointer; font: inherit;
+  }
+  .scene-btn:hover { background: rgba(200,167,106,.06); border-color: rgba(200,167,106,.18); }
+  .scene-btn.editing { border-color: rgba(200,167,106,.45); }
+  .scene-btn.editing .name { color: var(--text-hi); font-weight: 600; }
+  .scene-btn.active { background: rgba(200,167,106,.10); border-color: rgba(200,167,106,.45); }
+  .scene-btn.active::after { content: 'ĐANG PHÁT'; grid-column: 1 / -1; font-size: 10px; letter-spacing: .20em; color: var(--live); margin-top: 2px; }
+  .scene-btn .num { font-family: var(--font-display); font-size: 15px; letter-spacing: .22em; color: var(--muted-dim); }
+  .scene-btn .name { font-size: 14px; letter-spacing: .06em; }
+  .scene-btn .kind { font-size: 10px; letter-spacing: .20em; text-transform: uppercase; color: var(--muted-dim); }
+  .scene-btn.active .kind { color: var(--accent); }
+
+  .main { padding: 28px 32px 60px; display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+  .preview-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 1280px; background: #000; border: 1px solid var(--line); overflow: hidden; }
+  .preview-wrap iframe { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform-origin: 0 0; pointer-events: none; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; max-width: 1280px; }
+  .card h2 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 300; letter-spacing: .20em; text-transform: uppercase; color: var(--text-hi); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 20px; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+  input[type=text], textarea, input[type=number] {
+    font: inherit; font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--text-hi);
+    background: var(--panel-2); border: 1px solid var(--line); padding: 10px 12px; outline: none; width: 100%;
+  }
+  input:focus, textarea:focus { border-color: rgba(200,167,106,.5); }
+  textarea { resize: vertical; min-height: 64px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    font: inherit; font-size: 12px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--text);
+    background: rgba(200,167,106,.08); border: 1px solid rgba(200,167,106,.35); padding: 11px 18px; cursor: pointer;
+  }
+  .btn:hover { background: rgba(200,167,106,.16); }
+  .btn.primary { background: var(--accent); color: #05090B; border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-hi); }
+  .btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
+  .hint { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--accent-hi); background: rgba(200,167,106,.08); padding: 2px 6px; }
+  .toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; letter-spacing: .06em; text-transform: none; color: var(--text); cursor: pointer; flex-direction: row; }
+  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+  input[type=color] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--line); background: transparent; }
+  input[type=range] { accent-color: var(--accent); width: 100%; }
+  .field-set { display: none; }
+  .field-set.active { display: flex; flex-direction: column; gap: 16px; }
+  .chapters { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+  .chap {
+    display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; text-align: left;
+    padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); cursor: pointer; font: inherit;
+  }
+  .chap:hover { border-color: rgba(200,167,106,.45); }
+  .chap.active { border-color: var(--accent); background: rgba(200,167,106,.10); }
+  .chap .n { font-family: var(--font-display); font-size: 16px; letter-spacing: .12em; color: var(--muted-dim); }
+  .chap .t { font-size: 14px; letter-spacing: .04em; color: var(--text-hi); }
+  .chap .o { font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 3px; }
+  .timer { font-family: var(--font-display); font-size: 22px; letter-spacing: .16em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; }
+    .side { border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 16px; gap: 16px; }
+    .brand { font-size: 22px; }
+    .scenes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .scene-btn { grid-template-columns: 1fr; gap: 4px; padding: 12px; min-height: 64px; border-color: var(--line); align-content: center; }
+    .scene-btn .name { font-size: 15px; }
+    .scene-btn .num { display: none; }
+    .main { padding: 16px 16px 48px; gap: 16px; }
+    .card { padding: 16px; }
+    .card h2 { font-size: 17px; }
+    .grid { grid-template-columns: 1fr; }
+    .btn { padding: 13px 16px; min-height: 44px; }
+    .obs { display: none; }
+    .chapters { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<aside class="side">
+  <div>
+    <div class="eyebrow">Bảng điều khiển</div>
+    <div class="brand" style="margin-top:10px">Reanimal</div>
+  </div>
+  <div class="status" id="conn"><span class="dot"></span><span id="connText">đang kết nối</span></div>
+
+  <div class="eyebrow">Cảnh</div>
+  <div class="scenes" id="scenes"></div>
+
+  <div class="obs">
+    <div class="eyebrow" style="margin-bottom:10px">Nguồn browser trong OBS</div>
+    <div class="hint">URL <code id="viewerUrl"></code><br>Rộng 1920, cao 1080. Tắt tuỳ chọn "Shutdown source when not visible".</div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" id="copyUrl">Sao chép URL</button>
+      <a class="btn ghost" id="openViewer" href="/viewer" target="_blank" style="text-decoration:none">Mở viewer</a>
+    </div>
+    <div class="eyebrow" style="margin:18px 0 8px">Điều khiển từ điện thoại</div>
+    <div class="phone" id="phoneUrls">Cùng mạng Wi-Fi, mở một trong các địa chỉ này.</div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="preview-wrap" id="previewWrap">
+    <iframe id="preview" src="/games/reanimal/viewer?preview=1" title="preview"></iframe>
+  </div>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="editTitle">Sửa</h2>
+      <div class="row">
+        <button class="btn primary" id="showBtn">Bật cảnh này</button>
+      </div>
+    </div>
+
+    <div class="field-set" data-scene="clean">
+      <div class="hint">Cảnh mặc định. Chỉ có chữ LIVE, đồng hồ và hạt nhiễu. Không có gì để sửa.</div>
+    </div>
+
+    <div class="field-set" data-scene="info">
+      <div class="grid">
+        <label>Tên game<input type="text" data-bind="info.title"></label>
+        <label>Dòng nhỏ trên<input type="text" data-bind="info.kicker"></label>
+        <label>Nội dung chính<textarea data-bind="info.main"></textarea></label>
+        <label>Dòng phụ<input type="text" data-bind="info.secondary"></label>
+        <label>Thể loại<input type="text" data-bind="info.meta"></label>
+      </div>
+    </div>
+
+    <div class="field-set" data-scene="chapter">
+      <div class="eyebrow">Chọn nhanh</div>
+      <div class="chapters" id="chapterList"></div>
+      <div class="grid">
+        <label>Nhãn<input type="text" data-bind="chapter.label"></label>
+        <label>Tên chapter<input type="text" data-bind="chapter.title"></label>
+        <label>Nhiệm vụ<textarea data-bind="chapter.objective"></textarea></label>
+        <label>Giữ trên màn (ms)<input type="number" min="0" step="500" data-bind="chapter.holdMs"></label>
+      </div>
+      <div class="row">
+        <button class="btn" id="nextChapter">Chương tiếp theo</button>
+        <span class="hint">Hoặc gọi <code>POST /games/reanimal/api/chapter/next</code> từ phím tắt hay Stream Deck.</span>
+      </div>
+      <div class="hint">Bấm một chapter để hiện ngay. Thẻ tự ẩn sau thời gian giữ và quay về cảnh đang chơi trước đó.</div>
+    </div>
+
+    <div class="field-set" data-scene="soon">
+      <div class="grid">
+        <label>Dòng nhỏ trên<input type="text" data-bind="soon.kicker"></label>
+        <label>Tên game<input type="text" data-bind="soon.title"></label>
+        <label>Câu dẫn<input type="text" data-bind="soon.line"></label>
+        <label>Nhãn đếm ngược<input type="text" data-bind="soon.countLabel"></label>
+      </div>
+      <div class="row">
+        <label style="width:160px">Đếm ngược (phút)<input type="number" min="0" step="1" value="5" id="soonMinutes"></label>
+        <button class="btn" id="soonStart">Bắt đầu đếm</button>
+        <button class="btn ghost" id="soonClear">Xoá</button>
+        <span class="timer" id="soonTimer">--:--</span>
+      </div>
+    </div>
+
+    <div class="field-set" data-scene="brb">
+      <div class="grid">
+        <label>Dòng lớn<input type="text" data-bind="brb.headline"></label>
+        <label>Dòng nhỏ<input type="text" data-bind="brb.sub"></label>
+      </div>
+      <div class="row">
+        <button class="btn ghost" data-preset='{"headline":"Đừng đi đâu.","sub":"Mình quay lại ngay."}'>Đừng đi đâu</button>
+        <button class="btn ghost" data-preset='{"headline":"Chờ chút.","sub":"Mình quay lại sớm."}'>Chờ chút</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2>Vòng lặp</h2>
+      <button class="btn primary" id="loopToggle">Bật vòng lặp</button>
+    </div>
+    <div class="hint">Tự xoay vòng giữa các cảnh đang chơi theo thứ tự dưới đây. Sửa số giây cho từng bước, bỏ chọn để bỏ qua bước đó.</div>
+    <div class="loop-steps" id="loopSteps"></div>
+    <div class="loop-status" id="loopStatus">Đang tắt.</div>
+  </section>
+
+  <section class="card">
+    <h2>Giao diện</h2>
+    <div class="grid">
+      <label>Màu nhấn<div class="row"><input type="color" data-bind="theme.accent"><span class="hint" id="accentHex"></span></div></label>
+      <label>Hạt nhiễu <span id="grainVal" style="text-transform:none;letter-spacing:0"></span><input type="range" min="0" max="0.16" step="0.005" data-bind="theme.grain"></label>
+      <label>Chơi cùng<input type="text" data-bind="partner" placeholder="with @ten"></label>
+      <label class="toggle"><input type="checkbox" data-bind="live"> Hiện LIVE và đồng hồ khi đang chơi</label>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="/dev-reload.js"></script>
+<script>
+  const SCENES = [
+    { id: 'clean', num: '01', name: 'Đang chơi', kind: 'overlay' },
+    { id: 'info', num: '02', name: 'Thông tin game', kind: 'overlay' },
+    { id: 'chapter', num: '03', name: 'Chapter card', kind: 'tự ẩn' },
+    { id: 'soon', num: '04', name: 'Sắp bắt đầu', kind: 'toàn màn' },
+    { id: 'brb', num: '05', name: 'Quay lại ngay', kind: 'toàn màn' },
+  ];
+  const TIMED = new Set(['chapter']);
+  let state = null;
+  let editing = 'clean';
+  let dirty = new Set(); // bind paths the user is typing in
+
+  const $ = (s) => document.querySelector(s);
+  const get = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+  const setPath = (p, v) => p.split('.').reduceRight((acc, k) => ({ [k]: acc }), v);
+
+  async function api(path, body) {
+    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) console.error(path, await res.text());
+  }
+  const show = (scene, data) => api('/games/reanimal/api/show', { scene, data });
+  const patch = (p) => api('/games/reanimal/api/state', p);
+
+  // Scene list
+  const scenesEl = $('#scenes');
+  for (const s of SCENES) {
+    const b = document.createElement('button');
+    b.className = 'scene-btn';
+    b.dataset.scene = s.id;
+    b.innerHTML = `<span class="num">${s.num}</span><span class="name">${s.name}</span><span class="kind">${s.kind}</span>`;
+    b.addEventListener('click', () => { selectEdit(s.id); if (!TIMED.has(s.id)) show(s.id); });
+    scenesEl.append(b);
+  }
+
+  function selectEdit(scene) {
+    editing = scene;
+    document.querySelectorAll('.field-set').forEach((f) => f.classList.toggle('active', f.dataset.scene === scene));
+    const meta = SCENES.find((s) => s.id === scene);
+    $('#editTitle').textContent = `${meta.num} ${meta.name}`;
+    renderButtons();
+  }
+
+  function renderButtons() {
+    const onAir = state?.scene === editing;
+    document.querySelectorAll('.scene-btn').forEach((b) => b.classList.toggle('editing', b.dataset.scene === editing));
+    $('#showBtn').textContent = onAir && TIMED.has(editing) ? 'Hiện lại' : onAir ? 'Đang bật' : 'Bật cảnh này';
+    document.querySelectorAll('.chap').forEach((b) => b.classList.toggle('active', b.dataset.title === state?.chapter?.title));
+  }
+
+  $('#showBtn').addEventListener('click', () => show(editing));
+
+  $('#nextChapter').addEventListener('click', () => api('/games/reanimal/api/chapter/next', {}));
+
+  // Loop
+  const STEP_NAMES = { clean: '01 Đang chơi', info: '02 Thông tin game', chapter: '03 Chapter card' };
+  const setLoop = (p) => api('/games/reanimal/api/loop', p);
+  let stepTimers = {};
+  function readSteps() {
+    return [...document.querySelectorAll('.step')].map((row) => ({
+      scene: row.dataset.scene,
+      on: row.querySelector('input[type=checkbox]').checked,
+      sec: Math.max(1, Number(row.querySelector('input[type=number]').value) || 1),
+    }));
+  }
+  function renderLoop(s) {
+    const wrap = $('#loopSteps');
+    if (!wrap.children.length) {
+      s.loop.steps.forEach((st) => {
+        const row = document.createElement('div');
+        row.className = 'step';
+        row.dataset.scene = st.scene;
+        row.innerHTML = `<input type="checkbox"><span class="nm">${STEP_NAMES[st.scene] || st.scene}</span><span class="sec"><input type="number" min="1" step="1"> giây</span>`;
+        row.querySelector('input[type=checkbox]').addEventListener('change', () => setLoop({ steps: readSteps() }));
+        const num = row.querySelector('input[type=number]');
+        num.addEventListener('input', () => { dirty.add('loop'); clearTimeout(stepTimers[st.scene]); stepTimers[st.scene] = setTimeout(() => setLoop({ steps: readSteps() }), 400); });
+        num.addEventListener('blur', () => dirty.delete('loop'));
+        wrap.append(row);
+      });
+    }
+    s.loop.steps.forEach((st, i) => {
+      const row = wrap.children[i];
+      if (!row) return;
+      row.classList.toggle('now', s.loop.enabled && s.loop.index === i);
+      row.classList.toggle('off', !st.on);
+      row.querySelector('input[type=checkbox]').checked = !!st.on;
+      const num = row.querySelector('input[type=number]');
+      if (!dirty.has('loop') && document.activeElement !== num) num.value = st.sec;
+    });
+    $('#loopToggle').textContent = s.loop.enabled ? 'Tắt vòng lặp' : 'Bật vòng lặp';
+    $('#loopToggle').classList.toggle('primary', !s.loop.enabled);
+    const cur = s.loop.steps[s.loop.index];
+    $('#loopStatus').textContent = s.loop.enabled ? `Đang chạy. Bước hiện tại: ${STEP_NAMES[cur?.scene] || ''}.` : 'Đang tắt. Bật cảnh Sắp bắt đầu hoặc Quay lại ngay cũng sẽ tạm dừng vòng lặp.';
+    $('#loopStatus').classList.toggle('on', s.loop.enabled);
+  }
+  $('#loopToggle').addEventListener('click', () => setLoop({ enabled: !state?.loop?.enabled, steps: readSteps() }));
+
+  // Chapter presets
+  fetch('/games/reanimal/api/chapters').then((r) => r.json()).then((list) => {
+    const wrap = $('#chapterList');
+    for (const ch of list) {
+      const b = document.createElement('button');
+      b.className = 'chap';
+      b.dataset.title = ch.title;
+      b.innerHTML = `<span class="n">${String(ch.n).padStart(2, '0')}</span><span><div class="t">${ch.title}</div><div class="o">${ch.objective}</div></span>`;
+      b.addEventListener('click', () => show('chapter', { label: `Chương ${ch.n}`, title: ch.title, objective: ch.objective }));
+      wrap.append(b);
+    }
+    renderButtons();
+  });
+
+  // Bound fields
+  const timers = {};
+  document.querySelectorAll('[data-bind]').forEach((input) => {
+    const p = input.dataset.bind;
+    const send = () => {
+      let v = input.type === 'checkbox' ? input.checked : input.value;
+      if (input.type === 'number' || input.type === 'range') v = Number(v);
+      patch(setPath(p, v));
+    };
+    input.addEventListener('input', () => {
+      dirty.add(p);
+      if (input.type === 'range' || input.type === 'color') updateThemeLabels();
+      clearTimeout(timers[p]);
+      timers[p] = setTimeout(() => { send(); }, input.type === 'range' || input.type === 'color' ? 60 : 250);
+    });
+    input.addEventListener('blur', () => dirty.delete(p));
+    input.addEventListener('change', () => { dirty.delete(p); });
+  });
+
+  document.querySelectorAll('[data-preset]').forEach((b) => {
+    b.addEventListener('click', () => patch({ brb: JSON.parse(b.dataset.preset) }));
+  });
+
+  $('#soonStart').addEventListener('click', () => {
+    const min = Math.max(0, Number($('#soonMinutes').value) || 0);
+    patch({ soon: { startAt: Date.now() + min * 60_000 } });
+  });
+  $('#soonClear').addEventListener('click', () => patch({ soon: { startAt: null } }));
+  setInterval(() => {
+    const at = state?.soon?.startAt;
+    if (!at) { $('#soonTimer').textContent = '--:--'; return; }
+    const left = Math.max(0, Math.round((at - Date.now()) / 1000));
+    $('#soonTimer').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
+  }, 250);
+
+  function updateThemeLabels() {
+    $('#accentHex').textContent = $('[data-bind="theme.accent"]').value.toUpperCase();
+    $('#grainVal').textContent = Number($('[data-bind="theme.grain"]').value).toFixed(3);
+  }
+
+  function render(s) {
+    state = s;
+    document.querySelectorAll('.scene-btn').forEach((b) => b.classList.toggle('active', b.dataset.scene === s.scene));
+    document.querySelectorAll('[data-bind]').forEach((input) => {
+      const p = input.dataset.bind;
+      if (dirty.has(p) || document.activeElement === input) return;
+      const v = get(s, p);
+      if (input.type === 'checkbox') input.checked = !!v;
+      else if (String(input.value) !== String(v ?? '')) input.value = v ?? '';
+    });
+    updateThemeLabels();
+    renderButtons();
+    renderLoop(s);
+  }
+
+  // Live updates
+  const es = new EventSource('/games/reanimal/events');
+  es.addEventListener('state', (e) => render(JSON.parse(e.data)));
+  es.onopen = () => { $('#conn').classList.add('on'); $('#connText').textContent = 'đã kết nối'; };
+  es.onerror = () => { $('#conn').classList.remove('on'); $('#connText').textContent = 'đang kết nối lại'; };
+
+  // Viewer URL
+  const viewerUrl = `${location.origin}/viewer`;
+  $('#viewerUrl').textContent = viewerUrl;
+  $('#copyUrl').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(viewerUrl); $('#copyUrl').textContent = 'Đã sao chép'; setTimeout(() => ($('#copyUrl').textContent = 'Sao chép URL'), 1200); } catch {}
+  });
+
+  fetch('/api/addresses').then((r) => r.json()).then(({ port, lan }) => {
+    if (!lan.length) return;
+    $('#phoneUrls').innerHTML = 'Cùng mạng Wi-Fi, mở: ' + lan.map((ip) => `<code>http://${ip}:${port}/</code>`).join(' ');
+  });
+
+  // Scale preview
+  const wrap = $('#previewWrap');
+  const fit = () => { $('#preview').style.transform = `scale(${wrap.clientWidth / 1920})`; };
+  new ResizeObserver(fit).observe(wrap);
+  fit();
+
+  selectEdit('clean');
+</script>
+</body>
+</html>
