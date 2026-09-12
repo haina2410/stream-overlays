@@ -11,6 +11,7 @@
 //   GET  /events      Server-Sent Events stream of the full state
 import os from 'node:os';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
@@ -23,6 +24,8 @@ const PORT = Number(process.env.PORT || 4545);
 const HOST = process.env.HOST || '0.0.0.0';
 const STATE_FILE = process.env.STATE_FILE || path.join(ROOT, 'state.json');
 const HEARTBEAT_MS = 25_000;
+const DEV = process.argv.includes('--dev');
+const DEV_GENERATION = DEV ? randomUUID() : null;
 
 const store = createStore({ file: STATE_FILE });
 const clients = new Set();
@@ -44,6 +47,7 @@ app.get('/viewer', serveStatic({ path: './public/viewer.html' }));
 app.get('/api/state', (c) => c.json(store.get()));
 app.get('/api/chapters', (c) => c.json(CHAPTERS));
 app.get('/api/addresses', (c) => c.json({ port: PORT, lan: lanAddresses() }));
+app.get('/api/dev', (c) => c.json({ enabled: DEV, generation: DEV_GENERATION }));
 
 // IPv4 addresses of this machine on the local network, for the phone.
 function lanAddresses() {

@@ -11,6 +11,14 @@ pnpm start
 
 The server listens on all interfaces on port 4545 and prints the LAN address for your phone. It uses Hono on Node.
 
+For development, start watch mode instead:
+
+```sh
+pnpm dev
+```
+
+Changes in `server.js`, `lib/`, or `public/` restart the server and automatically reload open control panels, viewers, and OBS browser sources. The regular `pnpm start` command does not watch or reload.
+
 | Path | Use |
 | --- | --- |
 | `/` | Control panel. Works on a phone on the same Wi-Fi. |
