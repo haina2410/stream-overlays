@@ -12,27 +12,35 @@ export function applyActiveGame(frame, selector, gameId) {
 
 export function createHostController({ frame, selector, error, fetchImpl = globalThis.fetch, EventSourceImpl = globalThis.EventSource }) {
   let activeGameId = null;
+  let selectionVersion = 0;
 
   function showError(message = '') {
     error.textContent = message;
   }
 
-  function applyCatalog(catalog) {
+  function applySelection(gameId) {
+    activeGameId = gameId;
+    selectionVersion += 1;
+    applyActiveGame(frame, selector, gameId);
+  }
+
+  function applyCatalog(catalog, requestVersion) {
     selector.replaceChildren(...catalog.games.map((game) => {
       const option = selector.ownerDocument.createElement('option');
       option.value = game.id;
       option.textContent = game.name;
       return option;
     }));
-    activeGameId = catalog.activeGameId;
-    applyActiveGame(frame, selector, activeGameId);
+    if (requestVersion === selectionVersion) applySelection(catalog.activeGameId);
+    else if (activeGameId) selector.value = activeGameId;
   }
 
   async function loadCatalog() {
+    const requestVersion = selectionVersion;
     const response = await fetchImpl('/api/games');
     if (!response.ok) throw new Error('Could not load games.');
     const catalog = await response.json();
-    applyCatalog(catalog);
+    applyCatalog(catalog, requestVersion);
   }
 
   async function restoreSelection(message) {
@@ -46,6 +54,7 @@ export function createHostController({ frame, selector, error, fetchImpl = globa
 
   selector.addEventListener('change', async () => {
     const gameId = selector.value;
+    const requestVersion = selectionVersion;
     selector.disabled = true;
     showError();
     try {
@@ -59,7 +68,7 @@ export function createHostController({ frame, selector, error, fetchImpl = globa
         await restoreSelection(body.error || 'Could not change active game.');
         return;
       }
-      applyCatalog(body);
+      applyCatalog(body, requestVersion);
     } catch {
       await restoreSelection('Could not change active game.');
     } finally {
@@ -72,8 +81,7 @@ export function createHostController({ frame, selector, error, fetchImpl = globa
     events.addEventListener('state', (event) => {
       const state = JSON.parse(event.data);
       if (state.gameId) {
-        activeGameId = state.gameId;
-        applyActiveGame(frame, selector, state.gameId);
+        applySelection(state.gameId);
       }
     });
     loadCatalog().catch((error) => showError(error.message));
