@@ -6,7 +6,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "node --watch --watch-preserve-output --watch-path=server.js --watch-path=lib --watch-path=public server.js --dev",
+    "dev": "node --watch --watch-preserve-output --watch-path=server.js --watch-path=lib --watch-path=public --watch-path=games server.js --dev",
     "start": "node server.js",
     "test": "node --test"
   },

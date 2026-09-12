@@ -103,6 +103,51 @@ test('scoped state and compatibility APIs follow the active package', async () =
   });
 });
 
+test('compatibility API commands target only the active package and preserve host routes', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app } = createApp({ definitions: [...games, fixtureGame(publicDir)], stateFile, logger: null });
+
+  const shown = await app.request('/api/show', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scene: 'info' }),
+  });
+  assert.equal(shown.status, 200);
+  assert.equal((await app.request('/games/reanimal/api/state').then((response) => response.json())).scene, 'info');
+  assert.deepEqual(await app.request('/games/fixture/api/state').then((response) => response.json()), { score: 0 });
+
+  const chapters = await app.request('/api/chapters');
+  assert.equal(chapters.status, 200);
+  assert.deepEqual((await chapters.json()).map(({ title }) => title), [
+    'Dead in the Water',
+    'The Cleaning House',
+    'After the Flood',
+    'No Shelter',
+    'Down in a Hole',
+    'Nobody Left Behind',
+    'The Spoils',
+    'The Watcher',
+    'All-Consuming Past',
+  ]);
+
+  await app.request('/api/games/active', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gameId: 'fixture' }),
+  });
+  const unsupported = await app.request('/api/chapters');
+  assert.equal(unsupported.status, 404);
+  assert.deepEqual(await unsupported.json(), {
+    error: 'unsupported game API',
+    gameId: 'fixture',
+    path: '/api/chapters',
+  });
+
+  const hostCatalog = await app.request('/api/games');
+  assert.equal(hostCatalog.status, 200);
+  assert.equal((await hostCatalog.json()).activeGameId, 'fixture');
+});
+
 test('scoped REANIMAL updates and active selection persist through the manager', async () => {
   const { publicDir, stateFile } = await fixturePaths();
   const { app, manager } = createApp({ definitions: [...games, fixtureGame(publicDir)], stateFile, logger: null });

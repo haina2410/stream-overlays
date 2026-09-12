@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { readFile, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 
@@ -111,6 +113,56 @@ async function startServer(args = []) {
   return { child, port };
 }
 
+async function startDevServer() {
+  const port = await unusedPort();
+  const child = spawn('pnpm', ['dev'], {
+    cwd: new URL('..', import.meta.url),
+    env: { ...process.env, HOST: '127.0.0.1', PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`dev server did not start: ${stderr}`)), 5000);
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`dev server exited with ${code}: ${stderr}`));
+    });
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      if (chunk.includes('control')) {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+  });
+  return { child, port };
+}
+
+async function stopDevServer(child) {
+  if (child.exitCode !== null) return;
+  const exited = once(child, 'exit');
+  if (process.platform === 'win32') child.kill();
+  else process.kill(-child.pid, 'SIGTERM');
+  await exited;
+}
+
+async function waitForNewGeneration(port, generation) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    try {
+      const status = await fetch(`http://127.0.0.1:${port}/api/dev`).then((response) => response.json());
+      if (status.generation !== generation) return status.generation;
+    } catch {
+      // The child process briefly closes the listener while it restarts.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('dev server did not start a new generation after a game asset changed');
+}
+
 test('dev server exposes its reload generation', { timeout: 5000 }, async (t) => {
   const { child, port } = await startServer(['--dev']);
   t.after(() => child.kill());
@@ -125,5 +177,21 @@ test('dev server exposes its reload generation', { timeout: 5000 }, async (t) =>
   for (const path of ['/', '/viewer']) {
     const html = await fetch(`http://127.0.0.1:${port}${path}`).then((res) => res.text());
     assert.match(html, /<script type="module" src="\/dev-reload\.js"><\/script>/);
+  }
+});
+
+test('pnpm dev restarts when a file below games changes', { timeout: 12000 }, async () => {
+  const asset = new URL('../games/reanimal/public/overlay.css', import.meta.url);
+  const original = await readFile(asset, 'utf8');
+  const { child, port } = await startDevServer();
+
+  try {
+    const initial = await fetch(`http://127.0.0.1:${port}/api/dev`).then((response) => response.json());
+    await writeFile(asset, `${original}\n`);
+    const nextGeneration = await waitForNewGeneration(port, initial.generation);
+    assert.notEqual(nextGeneration, initial.generation);
+  } finally {
+    await stopDevServer(child);
+    await writeFile(asset, original);
   }
 });
