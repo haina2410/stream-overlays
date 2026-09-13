@@ -30,4 +30,5 @@ test('registry rejects non-string IDs and identifies the invalid package public 
   assert.throws(() => createGameRegistry([{ ...game(), id: 123 }], { exists: () => true }), /invalid game id/);
   assert.throws(() => createGameRegistry([{ ...game(), publicDir: new URL('../package.json', import.meta.url).pathname }]), /alpha\.publicDir/);
   assert.throws(() => createGameRegistry([{ ...game(), publicDir: 'public' }]), /alpha\.publicDir/);
+  assert.throws(() => createGameRegistry([{ ...game(), publicDir: '/invalid\0directory' }]), /alpha\.publicDir must be an existing absolute public directory/);
 });
