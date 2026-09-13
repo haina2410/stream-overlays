@@ -141,6 +141,33 @@ test('delayed successful POST responses do not override newer SSE game selection
   assert.equal(selector.value, 'fixture');
 });
 
+test('same-game SSE state events do not invalidate a pending successful selection', async () => {
+  const post = deferred();
+  const frame = { dataset: {}, src: '' };
+  const selector = createSelector();
+  const events = createEventSourceStub();
+  let requestCount = 0;
+  createHostController({
+    frame, selector, error: { textContent: '' },
+    fetchImpl: (url) => {
+      requestCount += 1;
+      if (url === '/api/games' && requestCount === 1) return Promise.resolve(response(catalog('reanimal')));
+      return post.promise;
+    },
+    EventSourceImpl: events.EventSourceStub,
+  }).start();
+  await settle();
+
+  selector.value = 'fixture';
+  const changing = selector.change();
+  events.instance.emitGame('reanimal');
+  post.resolve(response(catalog('fixture')));
+  await changing;
+
+  assert.equal(frame.dataset.gameId, 'fixture');
+  assert.equal(selector.value, 'fixture');
+});
+
 test('delayed restoration catalog responses do not override newer SSE game selections', async () => {
   const restoration = deferred();
   const frame = { dataset: {}, src: '' };
@@ -237,6 +264,31 @@ test('host controller reports reconnecting status and recovers without changing 
   assert.equal(status.textContent, 'đã kết nối');
 });
 
+test('host controller refreshes an initially failed catalog after EventSource recovery', async () => {
+  const frame = { dataset: {}, src: '' };
+  const selector = createSelector();
+  const events = createEventSourceStub();
+  let requests = 0;
+  createHostController({
+    frame, selector, error: { textContent: '' },
+    fetchImpl: () => {
+      requests += 1;
+      if (requests === 1) return Promise.reject(new Error('offline'));
+      return Promise.resolve(response(catalog('fixture')));
+    },
+    EventSourceImpl: events.EventSourceStub,
+  }).start();
+  await settle();
+  events.instance.emitGame('fixture');
+  events.instance.listeners.get('open')();
+  await settle();
+
+  assert.equal(requests, 2);
+  assert.deepEqual(selector.options.map((option) => option.value), ['reanimal', 'fixture']);
+  assert.equal(selector.value, 'fixture');
+  assert.equal(frame.src, '/games/fixture/control');
+});
+
 test('host operator links expose the stable viewer and phone URLs independently of the package', async () => {
   assert.equal(typeof hostClient.initializeHostLinks, 'function', 'host operator links must be initialized outside the package');
   const viewer = { textContent: '' };
@@ -266,10 +318,42 @@ test('host operator links retain the viewer URL when the address request fails',
   assert.equal(phone.textContent, 'Cùng mạng Wi-Fi');
 });
 
+test('host operator links retain the phone fallback when there are no LAN addresses', async () => {
+  const phone = { textContent: 'Cùng mạng Wi-Fi' };
+  await hostClient.initializeHostLinks({
+    viewer: { textContent: '' }, phone, open: {}, origin: 'http://localhost:4545',
+    fetchImpl: async () => response({ port: 4567, lan: [] }),
+  });
+  assert.equal(phone.textContent, 'Cùng mạng Wi-Fi');
+});
+
+test('host operator links copy the stable viewer URL and provide feedback', async () => {
+  const listeners = new Map();
+  const copy = {
+    textContent: 'Sao chép URL',
+    addEventListener(type, listener) { listeners.set(type, listener); },
+  };
+  const copied = [];
+  let restore;
+  await hostClient.initializeHostLinks({
+    viewer: { textContent: '' }, phone: { textContent: '' }, open: {}, copy,
+    origin: 'http://localhost:4545', fetchImpl: async () => response({ port: 4567, lan: [] }),
+    clipboard: { writeText: async (value) => copied.push(value) },
+    setTimeoutImpl: (callback) => { restore = callback; },
+  });
+  await listeners.get('click')();
+  assert.deepEqual(copied, ['http://localhost:4545/viewer']);
+  assert.equal(copy.textContent, 'Đã sao chép');
+  restore();
+  assert.equal(copy.textContent, 'Sao chép URL');
+});
+
 test('host control document owns the shared connection and operator-link controls', async () => {
   const html = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../public/control.html', import.meta.url), 'utf8'));
   assert.match(html, /id="serverStatus"/);
   assert.match(html, /id="viewerUrl"/);
   assert.match(html, /id="phoneUrls"/);
+  assert.match(html, /id="copyUrl"/);
+  assert.match(html, /Shutdown source when not visible/);
   assert.doesNotMatch(html, /REANIMAL/);
 });

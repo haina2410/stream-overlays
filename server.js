@@ -18,6 +18,7 @@ const STATE_FILE = process.env.STATE_FILE || path.join(ROOT, 'state.json');
 const HEARTBEAT_MS = 25_000;
 const DEV = process.argv.includes('--dev');
 const DEV_GENERATION = DEV ? randomUUID() : null;
+const HOST_API_PATHS = new Set(['/api/games', '/api/games/active', '/api/addresses', '/api/dev']);
 
 export function createApp({ definitions = games, stateFile = STATE_FILE, logger = console } = {}) {
   const registry = createGameRegistry(definitions);
@@ -51,23 +52,30 @@ export function createApp({ definitions = games, stateFile = STATE_FILE, logger 
     mountGame(app, definition, manager.getStore(definition.id));
   }
 
-  app.all('/games/:id/api/*', (c) => c.json({
-    error: 'unsupported game API',
-    gameId: c.req.param('id'),
-    path: c.req.path.slice(c.req.path.indexOf('/api/')),
-  }, 404));
+  app.all('/games/:id/api/*', unsupportedGameApi);
 
   app.all('/api/*', async (c) => {
+    if (HOST_API_PATHS.has(c.req.path)) {
+      return c.json({ error: 'method not allowed for host API', path: c.req.path }, 405);
+    }
     const gameId = manager.activeId();
     const url = new URL(c.req.url);
     url.pathname = `/games/${encodeURIComponent(gameId)}${c.req.path}`;
-    const response = await app.fetch(new Request(url, c.req.raw));
-    if (response.status !== 404) return response;
-    return c.json({ error: 'unsupported game API', gameId, path: c.req.path }, 404);
+    return app.fetch(new Request(url, c.req.raw));
   });
 
   app.use('/*', serveStatic({ root: path.join(ROOT, 'public') }));
   return { app, manager };
+}
+
+function unsupportedGameApi(c) {
+  const gameId = c.req.param('id');
+  const prefix = `/games/${gameId}`;
+  return c.json({
+    error: 'unsupported game API',
+    gameId,
+    path: c.req.path.slice(prefix.length),
+  }, 404);
 }
 
 function mountGame(app, definition, store) {

@@ -17,6 +17,7 @@ html, body { margin: 0; }
 .host-operator { font-size: 13px; color: #aeb7b8; }
 .host-operator code { color: #e6e6e0; }
 .host-operator a { color: #c8a76a; }
+.host-operator button { color: #c8a76a; background: transparent; border: 1px solid #c8a76a; cursor: pointer; }
 .host-frame { display: block; border: 0; }
 .host-control .host-frame { width: 100%; height: calc(100vh - 104px); }
 

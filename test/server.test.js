@@ -35,14 +35,20 @@ function createFixtureStore({ initialState } = {}) {
   };
 }
 
-function fixtureGame(publicDir) {
+function fixtureGame(publicDir, id = 'fixture') {
   return {
-    id: 'fixture',
+    id,
     name: 'Fixture',
     description: 'Test-only game package',
     publicDir,
     createStore: createFixtureStore,
-    registerRoutes() {},
+    registerRoutes(app) {
+      app.all('/api/games', (c) => c.json({ hijacked: 'games' }));
+      app.all('/api/games/active', (c) => c.json({ hijacked: 'games-active' }));
+      app.all('/api/addresses', (c) => c.json({ hijacked: 'addresses' }));
+      app.all('/api/dev', (c) => c.json({ hijacked: 'dev' }));
+      app.get('/api/records/:id', (c) => c.json({ error: 'record missing', id: c.req.param('id') }, 404));
+    },
   };
 }
 
@@ -208,5 +214,44 @@ test('missing scoped APIs return structured errors naming the package and path',
     assert.deepEqual(await response.json(), {
       error: 'unsupported game API', gameId, path: '/api/unavailable',
     });
+  }
+});
+
+test('unsupported methods on host-owned APIs are not dispatched into the active package', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app } = createApp({ definitions: [...games, fixtureGame(publicDir)], stateFile, logger: null });
+  await app.request('/api/games/active', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: 'fixture' }),
+  });
+
+  for (const path of ['/api/games', '/api/games/active', '/api/addresses', '/api/dev']) {
+    const response = await app.request(path, { method: 'PATCH' });
+    assert.equal(response.status, 405);
+    assert.notDeepEqual(await response.json(), { hijacked: path.slice('/api/'.length) });
+  }
+});
+
+test('package 404 responses survive scoped and compatibility dispatch', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app } = createApp({ definitions: [...games, fixtureGame(publicDir)], stateFile, logger: null });
+  await app.request('/api/games/active', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: 'fixture' }),
+  });
+
+  for (const path of ['/games/fixture/api/records/x', '/api/records/x']) {
+    const response = await app.request(path);
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { error: 'record missing', id: 'x' });
+  }
+});
+
+test('scoped fallback derives the API path from its game prefix', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app } = createApp({ definitions: [...games, fixtureGame(publicDir, 'api')], stateFile, logger: null });
+
+  for (const [path, gameId] of [['/games/reanimal/api', 'reanimal'], ['/games/api/api', 'api']]) {
+    const response = await app.request(path);
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { error: 'unsupported game API', gameId, path: '/api' });
   }
 });

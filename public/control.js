@@ -14,17 +14,31 @@ export async function initializeHostLinks({
   viewer,
   phone,
   open,
+  copy,
   origin = globalThis.location?.origin,
   fetchImpl = globalThis.fetch,
+  clipboard = globalThis.navigator?.clipboard,
+  setTimeoutImpl = globalThis.setTimeout,
 }) {
   const viewerUrl = `${origin}/viewer`;
   viewer.textContent = viewerUrl;
   open.href = viewerUrl;
+  if (copy) {
+    copy.addEventListener('click', async () => {
+      try {
+        await clipboard?.writeText(viewerUrl);
+        copy.textContent = 'Đã sao chép';
+        setTimeoutImpl(() => { copy.textContent = 'Sao chép URL'; }, 1200);
+      } catch {
+        // Clipboard access is optional; the visible URL remains available.
+      }
+    });
+  }
   try {
     const response = await fetchImpl('/api/addresses');
     if (!response.ok) return;
     const { port, lan } = await response.json();
-    phone.textContent = lan.map((ip) => `http://${ip}:${port}/`).join(' ');
+    if (lan.length) phone.textContent = lan.map((ip) => `http://${ip}:${port}/`).join(' ');
   } catch {
     // The stable local viewer URL remains useful when network discovery fails.
   }
@@ -33,34 +47,48 @@ export async function initializeHostLinks({
 export function createHostController({ frame, selector, error, status, fetchImpl = globalThis.fetch, EventSourceImpl = globalThis.EventSource }) {
   let activeGameId = null;
   let selectionVersion = 0;
+  let catalogLoaded = false;
+  let catalogRequest = null;
 
   function showError(message = '') {
     error.textContent = message;
   }
 
   function applySelection(gameId) {
+    const changed = activeGameId !== gameId;
     activeGameId = gameId;
-    selectionVersion += 1;
+    if (changed) selectionVersion += 1;
     applyActiveGame(frame, selector, gameId);
   }
 
-  function applyCatalog(catalog, requestVersion) {
+  function applyCatalog(catalog, requestVersion, allowActiveChange = true) {
     selector.replaceChildren(...catalog.games.map((game) => {
       const option = selector.ownerDocument.createElement('option');
       option.value = game.id;
       option.textContent = game.name;
       return option;
     }));
-    if (requestVersion === selectionVersion) applySelection(catalog.activeGameId);
+    if (requestVersion === selectionVersion && (allowActiveChange || !activeGameId || catalog.activeGameId === activeGameId)) {
+      applySelection(catalog.activeGameId);
+    }
     else if (activeGameId) selector.value = activeGameId;
   }
 
   async function loadCatalog() {
+    if (catalogRequest) return catalogRequest;
     const requestVersion = selectionVersion;
-    const response = await fetchImpl('/api/games');
-    if (!response.ok) throw new Error('Could not load games.');
-    const catalog = await response.json();
-    applyCatalog(catalog, requestVersion);
+    catalogRequest = (async () => {
+      const response = await fetchImpl('/api/games');
+      if (!response.ok) throw new Error('Could not load games.');
+      const catalog = await response.json();
+      catalogLoaded = true;
+      applyCatalog(catalog, requestVersion, false);
+    })();
+    try {
+      await catalogRequest;
+    } finally {
+      catalogRequest = null;
+    }
   }
 
   async function restoreSelection(message) {
@@ -99,7 +127,10 @@ export function createHostController({ frame, selector, error, status, fetchImpl
   function start() {
     if (status) status.textContent = 'đang kết nối';
     const events = new EventSourceImpl('/events');
-    events.addEventListener('open', () => { if (status) status.textContent = 'đã kết nối'; });
+    events.addEventListener('open', () => {
+      if (status) status.textContent = 'đã kết nối';
+      if (!catalogLoaded) loadCatalog().catch((loadError) => showError(loadError.message));
+    });
     events.addEventListener('error', () => { if (status) status.textContent = 'đang kết nối lại'; });
     events.addEventListener('state', (event) => {
       const state = JSON.parse(event.data);
@@ -125,5 +156,6 @@ if (typeof document !== 'undefined') {
     viewer: document.querySelector('#viewerUrl'),
     phone: document.querySelector('#phoneUrls'),
     open: document.querySelector('#openViewer'),
+    copy: document.querySelector('#copyUrl'),
   });
 }

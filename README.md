@@ -136,6 +136,14 @@ Create the package below `games/<id>/`. Its `index.js` must export a package def
 
 `registerRoutes(app, { store })` receives the package router and its isolated store. Register API paths such as `/api/state` there; the host mounts them under `/games/<id>`. Packages are not discovered automatically: import the definition and add it to the ordered `games` array in `games/index.js`. That order determines the default active package when no valid saved selection exists.
 
+Package checklist:
+
+1. Create a focused package directory.
+2. Implement and test its package contract.
+3. Register it explicitly in `games/index.js`.
+4. Verify its control and viewer pages use scoped APIs.
+5. Run the full test suite and manually switch to and from the package.
+
 
 ## Test
 
