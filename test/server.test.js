@@ -35,7 +35,7 @@ function createFixtureStore({ initialState } = {}) {
   };
 }
 
-function fixtureGame(publicDir, id = 'fixture') {
+function fixtureGame(publicDir, id = 'fixture', { wildcard = false } = {}) {
   return {
     id,
     name: 'Fixture',
@@ -48,6 +48,7 @@ function fixtureGame(publicDir, id = 'fixture') {
       app.all('/api/addresses', (c) => c.json({ hijacked: 'addresses' }));
       app.all('/api/dev', (c) => c.json({ hijacked: 'dev' }));
       app.get('/api/records/:id', (c) => c.json({ error: 'record missing', id: c.req.param('id') }, 404));
+      if (wildcard) app.all('/api/*', (c) => c.json({ hijacked: c.req.path }));
     },
   };
 }
@@ -228,6 +229,20 @@ test('unsupported methods on host-owned APIs are not dispatched into the active 
     const response = await app.request(path, { method: 'PATCH' });
     assert.equal(response.status, 405);
     assert.notDeepEqual(await response.json(), { hijacked: path.slice('/api/'.length) });
+  }
+});
+
+test('trailing-slash host APIs are not dispatched into the active package', async () => {
+  const { publicDir, stateFile } = await fixturePaths();
+  const { app } = createApp({ definitions: [...games, fixtureGame(publicDir, 'fixture', { wildcard: true })], stateFile, logger: null });
+  await app.request('/api/games/active', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gameId: 'fixture' }),
+  });
+
+  for (const path of ['/api/games/', '/api/games/active/', '/api/addresses/', '/api/dev/']) {
+    const response = await app.request(path, { method: 'PATCH' });
+    assert.equal(response.status, 405);
+    assert.equal((await response.json()).hijacked, undefined);
   }
 });
 

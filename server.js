@@ -55,7 +55,8 @@ export function createApp({ definitions = games, stateFile = STATE_FILE, logger 
   app.all('/games/:id/api/*', unsupportedGameApi);
 
   app.all('/api/*', async (c) => {
-    if (HOST_API_PATHS.has(c.req.path)) {
+    const hostPath = c.req.path.replace(/\/+$/, '') || '/';
+    if (HOST_API_PATHS.has(hostPath)) {
       return c.json({ error: 'method not allowed for host API', path: c.req.path }, 405);
     }
     const gameId = manager.activeId();
