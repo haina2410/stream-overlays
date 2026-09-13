@@ -71,7 +71,7 @@ The clock next to LIVE shows the local time of the machine that runs the browser
 
 ### Chapter cards
 
-The base game has 9 chapters. Each has a preset card with a short Vietnamese objective in `lib/store.js`.
+The base game has 9 chapters. Each has a preset card with a short Vietnamese objective in `games/reanimal/store.js`.
 Pick one in the control panel, or press "Chương tiếp theo" to advance. The overlay cannot read the game, so you trigger each card yourself.
 
 For a hotkey or Stream Deck, call:
@@ -128,9 +128,11 @@ curl localhost:4545/api/chapters
 
 A legacy state file whose top-level object has `scene` is recognized as REANIMAL state at startup. Its saved scene is available through the normal APIs after restart, and the next persisted update automatically writes the version-2 envelope.
 
+For safety, a saved timed or unknown scene resumes at its saved fallback scene (or `clean`), rather than replaying a stale timer. A saved enabled loop resumes at its first valid enabled step using that step's configured interval. Set `STATE_FILE` to override the default `state.json` location, including in tests and local deployments.
+
 ## Writing a package
 
-Create the package below `games/<id>/`. Its `index.js` must export a package definition with a lowercase, hyphen-safe `id`, `name`, `description`, `publicDir`, `createStore`, and `registerRoutes`. Put `control.html`, `viewer.html`, and assets in the declared public directory; the host serves them under `/games/<id>/control`, `/games/<id>/viewer`, and `/games/<id>/assets/*`.
+Create the package below `games/<id>/`. Its `index.js` must export a package definition with an `id` matching `/^[a-z0-9][a-z0-9-]*$/`, plus `name`, `description`, an existing absolute `publicDir`, `createStore`, and `registerRoutes`. `createStore({ initialState })` must return an object with `get()` and `onChange(listener)`; package-specific mutators are optional. Put `control.html`, `viewer.html`, and assets in the declared public directory; the host serves them under `/games/<id>/control`, `/games/<id>/viewer`, and `/games/<id>/assets/*`.
 
 `registerRoutes(app, { store })` receives the package router and its isolated store. Register API paths such as `/api/state` there; the host mounts them under `/games/<id>`. Packages are not discovered automatically: import the definition and add it to the ordered `games` array in `games/index.js`. That order determines the default active package when no valid saved selection exists.
 

@@ -186,9 +186,27 @@ test('canceling host and scoped event streams clears their heartbeats', async (t
 
   for (const path of ['/events', '/games/reanimal/events']) {
     const response = await app.request(path);
-    await response.body.cancel();
+    const reader = response.body.getReader();
+    await reader.read();
+    await new Promise((resolve) => setImmediate(resolve));
+    await reader.cancel();
     await new Promise((resolve) => setImmediate(resolve));
   }
 
+  assert.equal(timers.length, 2, 'each stream creates one heartbeat before cancellation');
   assert.equal(cleared.length, timers.length);
+  assert.deepEqual(new Set(cleared), new Set(timers));
+});
+
+test('missing scoped APIs return structured errors naming the package and path', async () => {
+  const { stateFile } = await fixturePaths();
+  const { app } = createApp({ stateFile, logger: null });
+  for (const gameId of ['reanimal', 'missing']) {
+    const response = await app.request(`/games/${gameId}/api/unavailable`);
+    assert.equal(response.status, 404);
+    assert.match(response.headers.get('content-type'), /application\/json/);
+    assert.deepEqual(await response.json(), {
+      error: 'unsupported game API', gameId, path: '/api/unavailable',
+    });
+  }
 });

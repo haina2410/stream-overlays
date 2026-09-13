@@ -10,7 +10,27 @@ export function applyActiveGame(frame, selector, gameId) {
   return true;
 }
 
-export function createHostController({ frame, selector, error, fetchImpl = globalThis.fetch, EventSourceImpl = globalThis.EventSource }) {
+export async function initializeHostLinks({
+  viewer,
+  phone,
+  open,
+  origin = globalThis.location?.origin,
+  fetchImpl = globalThis.fetch,
+}) {
+  const viewerUrl = `${origin}/viewer`;
+  viewer.textContent = viewerUrl;
+  open.href = viewerUrl;
+  try {
+    const response = await fetchImpl('/api/addresses');
+    if (!response.ok) return;
+    const { port, lan } = await response.json();
+    phone.textContent = lan.map((ip) => `http://${ip}:${port}/`).join(' ');
+  } catch {
+    // The stable local viewer URL remains useful when network discovery fails.
+  }
+}
+
+export function createHostController({ frame, selector, error, status, fetchImpl = globalThis.fetch, EventSourceImpl = globalThis.EventSource }) {
   let activeGameId = null;
   let selectionVersion = 0;
 
@@ -77,7 +97,10 @@ export function createHostController({ frame, selector, error, fetchImpl = globa
   });
 
   function start() {
+    if (status) status.textContent = 'đang kết nối';
     const events = new EventSourceImpl('/events');
+    events.addEventListener('open', () => { if (status) status.textContent = 'đã kết nối'; });
+    events.addEventListener('error', () => { if (status) status.textContent = 'đang kết nối lại'; });
     events.addEventListener('state', (event) => {
       const state = JSON.parse(event.data);
       if (state.gameId) {
@@ -96,5 +119,11 @@ if (typeof document !== 'undefined') {
     frame: document.querySelector('#gameFrame'),
     selector: document.querySelector('#gameSelect'),
     error: document.querySelector('#gameError'),
+    status: document.querySelector('#serverStatus'),
   }).start();
+  initializeHostLinks({
+    viewer: document.querySelector('#viewerUrl'),
+    phone: document.querySelector('#phoneUrls'),
+    open: document.querySelector('#openViewer'),
+  });
 }

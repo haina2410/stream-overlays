@@ -9,12 +9,16 @@ html, body { margin: 0; }
   font: 16px system-ui, sans-serif;
 }
 
-.host-controls { display: flex; align-items: center; gap: 12px; padding: 16px; }
+.host-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; }
 .host-controls label { font-weight: 600; }
 .host-controls select { min-width: 180px; padding: 7px; }
 .host-error { color: #e8a39a; }
+.host-status { color: #c8a76a; }
+.host-operator { font-size: 13px; color: #aeb7b8; }
+.host-operator code { color: #e6e6e0; }
+.host-operator a { color: #c8a76a; }
 .host-frame { display: block; border: 0; }
-.host-control .host-frame { width: 100%; height: calc(100vh - 65px); }
+.host-control .host-frame { width: 100%; height: calc(100vh - 104px); }
 
 .host-viewer { width: 100vw; height: 100vh; overflow: hidden; background: transparent; }
 .host-viewer .host-frame { width: 100vw; height: 100vh; background: transparent; }

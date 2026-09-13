@@ -28,8 +28,6 @@
   .step input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
   .loop-status { font-size: 13px; color: var(--muted); }
   .loop-status.on { color: var(--accent); }
-  .phone { font-size: 13px; color: var(--muted); line-height: 1.6; }
-  .phone code { display: inline-block; margin-top: 4px; }
 
   .side { border-right: 1px solid var(--line); padding: 28px 22px; display: flex; flex-direction: column; gap: 22px; }
   .brand { font-family: var(--font-display); font-size: 28px; font-weight: 300; letter-spacing: .30em; text-transform: uppercase; color: var(--text-hi); line-height: 1; }
@@ -124,16 +122,6 @@
   <div class="eyebrow">Cảnh</div>
   <div class="scenes" id="scenes"></div>
 
-  <div class="obs">
-    <div class="eyebrow" style="margin-bottom:10px">Nguồn browser trong OBS</div>
-    <div class="hint">URL <code id="viewerUrl"></code><br>Rộng 1920, cao 1080. Tắt tuỳ chọn "Shutdown source when not visible".</div>
-    <div class="row" style="margin-top:12px">
-      <button class="btn ghost" id="copyUrl">Sao chép URL</button>
-      <a class="btn ghost" id="openViewer" href="/viewer" target="_blank" style="text-decoration:none">Mở viewer</a>
-    </div>
-    <div class="eyebrow" style="margin:18px 0 8px">Điều khiển từ điện thoại</div>
-    <div class="phone" id="phoneUrls">Cùng mạng Wi-Fi, mở một trong các địa chỉ này.</div>
-  </div>
 </aside>
 
 <main class="main">
@@ -399,18 +387,6 @@
   es.addEventListener('state', (e) => render(JSON.parse(e.data)));
   es.onopen = () => { $('#conn').classList.add('on'); $('#connText').textContent = 'đã kết nối'; };
   es.onerror = () => { $('#conn').classList.remove('on'); $('#connText').textContent = 'đang kết nối lại'; };
-
-  // Viewer URL
-  const viewerUrl = `${location.origin}/viewer`;
-  $('#viewerUrl').textContent = viewerUrl;
-  $('#copyUrl').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(viewerUrl); $('#copyUrl').textContent = 'Đã sao chép'; setTimeout(() => ($('#copyUrl').textContent = 'Sao chép URL'), 1200); } catch {}
-  });
-
-  fetch('/api/addresses').then((r) => r.json()).then(({ port, lan }) => {
-    if (!lan.length) return;
-    $('#phoneUrls').innerHTML = 'Cùng mạng Wi-Fi, mở: ' + lan.map((ip) => `<code>http://${ip}:${port}/</code>`).join(' ');
-  });
 
   // Scale preview
   const wrap = $('#previewWrap');

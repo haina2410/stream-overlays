@@ -27,7 +27,8 @@ export function createHostViewer({ frame, fetchImpl = globalThis.fetch, EventSou
       const state = JSON.parse(event.data);
       if (state.gameId) applySelection(state.gameId);
     });
-    loadCatalog();
+    // EventSource reconnects independently if the startup request fails.
+    loadCatalog().catch(() => {});
     return events;
   }
 

@@ -1,6 +1,6 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGameManager } from '../lib/game-manager.js';
@@ -190,4 +190,35 @@ test('manager logs malformed saved JSON and starts with package defaults', async
   assert.equal(manager.activeState().score, 0);
   assert.equal(errors.length, 1);
   assert.match(errors[0], /could not read/i);
+});
+
+test('manager rejects invalid stores at startup with the package and contract field', () => {
+  for (const [store, field] of [[null, 'store'], [{ onChange() {} }, 'get'], [{ get() {} }, 'onChange']]) {
+    const registry = createGameRegistry([{
+      id: 'broken', name: 'Broken', description: 'Invalid fixture', publicDir: '/fixture',
+      createStore: () => store, registerRoutes() {},
+    }], { exists: () => true });
+    assert.throws(() => createGameManager({ registry }), new RegExp(`broken.*${field}`));
+  }
+});
+
+test('manager recovers when a later persistence write follows a failed one', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stream-overlay-game-manager-recovery-'));
+  directories.push(directory);
+  const file = join(directory, 'created-later', 'state.json');
+  const errors = [];
+  const manager = createGameManager({
+    registry: registryFor('alpha'), file,
+    logger: { error: (...args) => errors.push(args.join(' ')) },
+  });
+
+  manager.getStore('alpha').patch({ score: 1 });
+  await manager.flush();
+  await mkdir(join(directory, 'created-later'));
+  manager.getStore('alpha').patch({ score: 2 });
+  await manager.flush();
+
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /could not write/i);
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).games.alpha.score, 2);
 });

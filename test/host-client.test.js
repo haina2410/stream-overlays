@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gamePageUrl, applyActiveGame, createHostController } from '../public/control.js';
+import * as hostClient from '../public/control.js';
 import { updateViewerFrame, createHostViewer } from '../public/viewer.js';
 
 function deferred() {
@@ -167,4 +168,108 @@ test('delayed restoration catalog responses do not override newer SSE game selec
   await changing;
   assert.equal(frame.dataset.gameId, 'fixture');
   assert.equal(selector.value, 'fixture');
+});
+
+test('failed control selection disables the selector until its error and restoration finish', async () => {
+  const post = deferred();
+  const frame = { dataset: {}, src: '' };
+  const selector = createSelector();
+  const error = { textContent: '' };
+  const events = createEventSourceStub();
+  let catalogRequests = 0;
+  createHostController({
+    frame, selector, error,
+    fetchImpl: (url) => {
+      if (url === '/api/games') {
+        catalogRequests += 1;
+        return Promise.resolve(response(catalog('reanimal')));
+      }
+      return post.promise;
+    },
+    EventSourceImpl: events.EventSourceStub,
+  }).start();
+  await settle();
+
+  selector.value = 'fixture';
+  const changing = selector.change();
+  assert.equal(selector.disabled, true);
+  post.resolve(response({ error: 'fixture is unavailable' }, false));
+  await changing;
+
+  assert.equal(catalogRequests, 2);
+  assert.equal(selector.disabled, false);
+  assert.equal(error.textContent, 'fixture is unavailable');
+  assert.equal(selector.value, 'reanimal');
+  assert.equal(frame.src, '/games/reanimal/control');
+});
+
+test('viewer handles a rejected startup catalog and recovers on the event stream', async () => {
+  const frame = { dataset: {}, src: '' };
+  const events = createEventSourceStub();
+  createHostViewer({
+    frame,
+    fetchImpl: async () => { throw new Error('network unavailable'); },
+    EventSourceImpl: events.EventSourceStub,
+  }).start();
+  await settle();
+  assert.equal(frame.src, '');
+  events.instance.emitGame('fixture');
+  assert.equal(frame.src, '/games/fixture/viewer');
+});
+
+test('host controller reports reconnecting status and recovers without changing its frame', async () => {
+  const frame = { dataset: {}, src: '' };
+  const status = { textContent: '' };
+  const events = createEventSourceStub();
+  createHostController({
+    frame, selector: createSelector(), error: { textContent: '' }, status,
+    fetchImpl: async () => response(catalog('fixture')),
+    EventSourceImpl: events.EventSourceStub,
+  }).start();
+  await settle();
+  assert.equal(status.textContent, 'đang kết nối');
+  events.instance.listeners.get('open')();
+  assert.equal(status.textContent, 'đã kết nối');
+  events.instance.listeners.get('error')();
+  assert.equal(status.textContent, 'đang kết nối lại');
+  assert.equal(frame.src, '/games/fixture/control');
+  events.instance.listeners.get('open')();
+  assert.equal(status.textContent, 'đã kết nối');
+});
+
+test('host operator links expose the stable viewer and phone URLs independently of the package', async () => {
+  assert.equal(typeof hostClient.initializeHostLinks, 'function', 'host operator links must be initialized outside the package');
+  const viewer = { textContent: '' };
+  const phone = { textContent: '' };
+  const open = { href: '' };
+  await hostClient.initializeHostLinks({
+    viewer, phone, open, origin: 'http://localhost:4545',
+    fetchImpl: async (url) => {
+      assert.equal(url, '/api/addresses');
+      return response({ port: 4567, lan: ['192.168.1.20', '10.0.0.2'] });
+    },
+  });
+  assert.equal(viewer.textContent, 'http://localhost:4545/viewer');
+  assert.equal(open.href, 'http://localhost:4545/viewer');
+  assert.equal(phone.textContent, 'http://192.168.1.20:4567/ http://10.0.0.2:4567/');
+});
+
+test('host operator links retain the viewer URL when the address request fails', async () => {
+  assert.equal(typeof hostClient.initializeHostLinks, 'function', 'host operator links must be initialized outside the package');
+  const viewer = { textContent: '' };
+  const phone = { textContent: 'Cùng mạng Wi-Fi' };
+  await hostClient.initializeHostLinks({
+    viewer, phone, open: {}, origin: 'http://localhost:4545',
+    fetchImpl: async () => { throw new Error('offline'); },
+  });
+  assert.equal(viewer.textContent, 'http://localhost:4545/viewer');
+  assert.equal(phone.textContent, 'Cùng mạng Wi-Fi');
+});
+
+test('host control document owns the shared connection and operator-link controls', async () => {
+  const html = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../public/control.html', import.meta.url), 'utf8'));
+  assert.match(html, /id="serverStatus"/);
+  assert.match(html, /id="viewerUrl"/);
+  assert.match(html, /id="phoneUrls"/);
+  assert.doesNotMatch(html, /REANIMAL/);
 });

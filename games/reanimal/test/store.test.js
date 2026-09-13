@@ -53,6 +53,29 @@ test('restored timed or unknown scenes return to their saved fallback', () => {
   assert.equal(unknown.get().scene, 'clean');
 });
 
+test('a restored enabled loop starts its first eligible step at its saved interval', () => {
+  const t = fakeTimers();
+  const s = createStore({
+    initialState: {
+      scene: 'brb',
+      loop: {
+        enabled: true,
+        steps: [
+          { scene: 'clean', sec: 0, on: true },
+          { scene: 'info', sec: 7, on: true },
+          { scene: 'chapter', sec: 9, on: true },
+        ],
+      },
+    },
+    ...t,
+  });
+
+  assert.equal(s.get().scene, 'info');
+  assert.equal(s.get().loop.index, 1);
+  assert.equal(t.pending(), 1);
+  assert.equal(t.queue[0].ms, 7000);
+});
+
 test('base game has 9 chapters with title and objective', () => {
   assert.equal(CHAPTERS.length, 9);
   CHAPTERS.forEach((c, i) => {

@@ -51,6 +51,12 @@ export function createApp({ definitions = games, stateFile = STATE_FILE, logger 
     mountGame(app, definition, manager.getStore(definition.id));
   }
 
+  app.all('/games/:id/api/*', (c) => c.json({
+    error: 'unsupported game API',
+    gameId: c.req.param('id'),
+    path: c.req.path.slice(c.req.path.indexOf('/api/')),
+  }, 404));
+
   app.all('/api/*', async (c) => {
     const gameId = manager.activeId();
     const url = new URL(c.req.url);
